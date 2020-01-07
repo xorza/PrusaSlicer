@@ -18,7 +18,6 @@ GUID WceusbshGUID = { 0x25dbce51, 0x6c8f, 0x4a72,
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <glob.h>
-#include <libgen.h>
 #include <pwd.h>
 #include <boost/filesystem.hpp>
 #endif
@@ -59,7 +58,7 @@ void RemovableDriveManager::search_for_drives()
 					{
 						volume_name = L"REMOVABLE DRIVE";
 					}
-					*/
+					*/ 
 					if (file_system_name != L"")
 					{
 						ULARGE_INTEGER free_space;
@@ -311,7 +310,8 @@ void RemovableDriveManager::inspect_file(const std::string &path, const std::str
 	if(!compare_filesystem_id(path, parent_path))
 	{
 		//free space
-		boost::filesystem::space_info si = boost::filesystem::space(path);
+		boost::filesystem::path boost_path(path);
+		boost::filesystem::space_info si = boost::filesystem::space(boost_path);
 		//std::cout << "Free space: " << fs_si.free << "Available space: " << fs_si.available << " " << path << '\n';
 		if(si.available != 0)
 		{
@@ -325,8 +325,7 @@ void RemovableDriveManager::inspect_file(const std::string &path, const std::str
 			{
 				if(pw->pw_name == username)
 				{
-					std::string name = basename(const_cast<char*>(path.c_str()));
-		       		m_current_drives.push_back(DriveData(name,path));
+		       		m_current_drives.push_back(DriveData(boost_path.stem().string(),path));
 				}
 			}
 		}
