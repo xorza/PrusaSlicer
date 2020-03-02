@@ -7,4 +7,5 @@
 -(void) on_device_unmount: (NSNotification*) notification;
 -(NSArray*) list_dev;
 -(void)eject_drive:(NSString *)path;
+-(void)on_darkmode_change:(NSNotification *)note;
 @end
