@@ -55,6 +55,33 @@ private:
     coordf_t            get_value();
 };
 
+enum ButtonType
+{
+    btUndef         = 0,
+    btAdd           = 1,
+    btDelete        = 2,
+};
+
+class LayerRangeButton : public ScalableButton
+{
+    ButtonType              m_type;
+    t_layer_height_range    m_range;
+
+public:
+    LayerRangeButton(   wxWindow* parent,
+                        const ScalableBitmap& bitmap,
+                        t_layer_height_range range,
+                        ButtonType type
+                        ):
+    m_range(range), m_type(type), 
+    ScalableButton(parent, wxID_ANY, bitmap) {}
+
+    ~LayerRangeButton() {}
+
+    ButtonType                      type()  const { return m_type; }
+    const t_layer_height_range&     range() const { return m_range; }
+};
+
 class ObjectLayers : public OG_Settings
 {
     ScalableBitmap  m_bmp_delete;
@@ -64,6 +91,8 @@ class ObjectLayers : public OG_Settings
     wxFlexGridSizer*       m_grid_sizer;
     t_layer_height_range   m_selectable_range;
     EditorType             m_selection_type {etUndef};
+    ButtonType             m_pushed_btn_type {btUndef};
+    t_layer_height_range   m_pushed_btn_range;
 
 public:
     ObjectLayers(wxWindow* parent);
@@ -79,7 +108,13 @@ public:
     void        UpdateAndShow(const bool show) override;
     void        msw_rescale();
     void        reset_selection();
+    void        add_range(t_layer_height_range range);
+    void        delete_range(t_layer_height_range range);
     void        set_selectable_range(const t_layer_height_range& range) { m_selectable_range = range; }
+    void        set_pushed_button_items(ButtonType type, const t_layer_height_range& range);
+    void        reset_pushed_button_items();
+    void        process_btn_pushed();
+    ButtonType  pushed_btn_type() const { return m_pushed_btn_type; }
 
     friend class LayerRangeEditor;
 };

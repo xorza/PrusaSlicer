@@ -2881,10 +2881,10 @@ static double get_max_layer_height(const int extruder_idx)
     return max_layer_height;
 }
 
-void ObjectList::add_layer_range_after_current(const t_layer_height_range& current_range)
+std::string ObjectList::add_layer_range_after_current(const t_layer_height_range& current_range)
 {
     const int obj_idx = get_selected_obj_idx();
-    if (obj_idx < 0) return;
+    if (obj_idx < 0) return "";
 
     const wxDataViewItem layers_item = GetSelection();
 
@@ -2904,23 +2904,29 @@ void ObjectList::add_layer_range_after_current(const t_layer_height_range& curre
     {
         const t_layer_height_range& next_range = (++ranges.find(current_range))->first;
 
-        if (current_range.second > next_range.first)
-            return; // range division has no sense
+//        if (current_range.second > next_range.first)
+//            return; // range division has no sense
         
+        if (current_range.second >= next_range.second)
+            return L("Stop at height value for current layer is bigger then for the next one.");
+
         const int layer_idx = m_objects_model->GetItemIdByLayerRange(obj_idx, next_range);
         if (layer_idx < 0)
-            return;
+            return L("A next range doesn't exist in list");
 
-        if (current_range.second == next_range.first)
+//        if (current_range.second == next_range.first)
+        if (current_range.second < next_range.second)
         {
             const auto old_config = ranges.at(next_range);
 
-            const coordf_t delta = (next_range.second - next_range.first);
+//            const coordf_t delta = (next_range.second - next_range.first);
+            const coordf_t delta = (next_range.second - current_range.second);
             if (delta < get_min_layer_height(old_config.opt_int("extruder"))/*0.05f*/) // next range division has no sense 
-                return; 
+                return L("A difference in Stop at height values is a less than minimum layer height."); 
 
-            const coordf_t midl_layer = next_range.first + 0.5 * delta;
-            
+//            const coordf_t midl_layer = next_range.first + 0.5 * delta;
+            const coordf_t midl_layer = current_range.second + 0.5 * delta;
+
             t_layer_height_range new_range = { midl_layer, next_range.second };
 
             Plater::TakeSnapshot snapshot(wxGetApp().plater(), _(L("Add Height Range")));
@@ -2953,6 +2959,8 @@ void ObjectList::add_layer_range_after_current(const t_layer_height_range& curre
 
     // select item to update layers sizer
     select_item(layers_item);
+
+    return "";
 }
 
 void ObjectList::add_layer_item(const t_layer_height_range& range, 

@@ -320,7 +320,7 @@ public:
     // Remove objects/sub-object from the list
     void remove();
     void del_layer_range(const t_layer_height_range& range);
-    void add_layer_range_after_current(const t_layer_height_range& current_range);
+    std::string add_layer_range_after_current(const t_layer_height_range& current_range);
     void add_layer_item (const t_layer_height_range& range, 
                          const wxDataViewItem layers_item, 
                          const int layer_idx = -1);

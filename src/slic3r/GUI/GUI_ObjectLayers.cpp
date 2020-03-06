@@ -68,19 +68,24 @@ wxSizer* ObjectLayers::create_layer(const t_layer_height_range& range)
         m_selection_type = type;
     };
 
-    auto update_focus_data = [range, this](const t_layer_height_range& new_range, EditorType type, bool enter_pressed)
+    auto update_focus_and_pushed_btn_data = [range, this](const t_layer_height_range& new_range, EditorType type, bool enter_pressed)
     {
         // change selectable range for new one, if enter was pressed or if same range was selected
         if (enter_pressed || m_selectable_range == range)
             m_selectable_range = new_range;
         if (enter_pressed)
             m_selection_type = type;
+
+        // there will be new range after an executing of edit_layer_range()
+        // so, update m_pushed_btn_range, if button was pushed for current layer
+        if (range == m_pushed_btn_range)
+            m_pushed_btn_range = new_range;
     };
 
     // Add control for the "Min Z"
 
     auto editor = new LayerRangeEditor(this, double_to_string(range.first), etMinZ,
-                                       set_focus_data, [range, update_focus_data, this](coordf_t min_z, bool enter_pressed)
+                                       set_focus_data, [range, update_focus_and_pushed_btn_data, this](coordf_t min_z, bool enter_pressed)
     {
         if (fabs(min_z - range.first) < EPSILON) {
             m_selection_type = etUndef;
@@ -90,7 +95,7 @@ wxSizer* ObjectLayers::create_layer(const t_layer_height_range& range)
         // data for next focusing
         coordf_t max_z = min_z < range.second ? range.second : min_z + 0.5;
         const t_layer_height_range& new_range = { min_z, max_z };
-        update_focus_data(new_range, etMinZ, enter_pressed);
+        update_focus_and_pushed_btn_data(new_range, etMinZ, enter_pressed);
 
         return wxGetApp().obj_list()->edit_layer_range(range, new_range);
     });
@@ -101,7 +106,7 @@ wxSizer* ObjectLayers::create_layer(const t_layer_height_range& range)
     // Add control for the "Max Z"
 
     editor = new LayerRangeEditor(this, double_to_string(range.second), etMaxZ,
-                                  set_focus_data, [range, update_focus_data, this](coordf_t max_z, bool enter_pressed)
+                                  set_focus_data, [range, update_focus_and_pushed_btn_data, this](coordf_t max_z, bool enter_pressed)
     {
         if (fabs(max_z - range.second) < EPSILON || range.first > max_z) {
             m_selection_type = etUndef;
@@ -110,7 +115,7 @@ wxSizer* ObjectLayers::create_layer(const t_layer_height_range& range)
 
         // data for next focusing
         const t_layer_height_range& new_range = { range.first, max_z };
-        update_focus_data(new_range, etMaxZ, enter_pressed);
+        update_focus_and_pushed_btn_data(new_range, etMaxZ, enter_pressed);
 
         return wxGetApp().obj_list()->edit_layer_range(range, new_range);
     });
@@ -122,7 +127,7 @@ wxSizer* ObjectLayers::create_layer(const t_layer_height_range& range)
 
     editor = new LayerRangeEditor(this,
                                 double_to_string(m_object->layer_config_ranges[range].option("layer_height")->getFloat()),
-                             etLayerHeight, set_focus_data, [range, this](coordf_t layer_height, bool)
+                             etLayerHeight, set_focus_data, [range](coordf_t layer_height, bool)
     {
         return wxGetApp().obj_list()->edit_layer_range(range, layer_height);
     });
@@ -149,24 +154,22 @@ void ObjectLayers::create_layers_list()
         const t_layer_height_range& range = layer.first;
         auto sizer = create_layer(range);
 
-        auto del_btn = new ScalableButton(m_parent, wxID_ANY, m_bmp_delete);
+        auto del_btn = new LayerRangeButton(m_parent, m_bmp_delete, range, btDelete);
         del_btn->SetToolTip(_(L("Remove layer range")));
 
         sizer->Add(del_btn, 0, wxRIGHT | wxLEFT, em_unit(m_parent));
 
-        del_btn->Bind(wxEVT_BUTTON, [range](wxEvent &) {
-            wxGetApp().obj_list()->del_layer_range(range);
-        });
+        del_btn->Bind(wxEVT_BUTTON, [this, range](wxEvent &) { delete_range(range); });
 
-        auto add_btn = new ScalableButton(m_parent, wxID_ANY, m_bmp_add);
+        auto add_btn = new LayerRangeButton(m_parent, m_bmp_add, range, btAdd);
         add_btn->SetToolTip(_(L("Add layer range")));
 
         sizer->Add(add_btn);
 
-        add_btn->Bind(wxEVT_BUTTON, [range](wxEvent &) {
-            wxGetApp().obj_list()->add_layer_range_after_current(range);
-        });
+        add_btn->Bind(wxEVT_BUTTON, [this, range](wxEvent &) { add_range(range); });
     }
+
+    process_btn_pushed();
 }
 
 void ObjectLayers::update_layers_list()
@@ -255,7 +258,7 @@ void ObjectLayers::msw_rescale()
             {
                 wxSizerItem* b_item = item->GetSizer()->GetItem(btn);
                 if (b_item->IsWindow()) {
-                    ScalableButton* button = dynamic_cast<ScalableButton*>(b_item->GetWindow());
+                    LayerRangeButton* button = dynamic_cast<LayerRangeButton*>(b_item->GetWindow());
                     if (button != nullptr)
                         button->msw_rescale();
                 }                
@@ -269,6 +272,49 @@ void ObjectLayers::reset_selection()
 {
     m_selectable_range = { 0.0, 0.0 };
     m_selection_type = etLayerHeight;
+}
+
+void ObjectLayers::set_pushed_button_items(ButtonType type, const t_layer_height_range& range)
+{
+    m_pushed_btn_range = range;
+    m_pushed_btn_type  = type;
+}
+
+void ObjectLayers::reset_pushed_button_items()
+{
+    m_pushed_btn_range = { 0.0, 0.0 };
+    m_pushed_btn_type  = btUndef;
+}
+
+void ObjectLayers::process_btn_pushed()
+{
+    if (m_pushed_btn_type == btAdd)
+        add_range(m_pushed_btn_range);
+    else if (m_pushed_btn_type == btDelete)
+        delete_range(m_pushed_btn_range);
+}
+
+void ObjectLayers::add_range(const t_layer_height_range range)
+{
+    if (range == t_layer_height_range{0.0, 0.0})
+        return;
+    reset_pushed_button_items();
+
+    std::string result = wxGetApp().obj_list()->add_layer_range_after_current(range);
+    if (!result.empty()) {
+        wxString title = _(L("Range division has no sence"));
+        wxMessageDialog dialog(m_parent, _(result), title, wxICON_INFORMATION | wxOK);
+        dialog.ShowModal();
+    }
+}
+
+void ObjectLayers::delete_range(const t_layer_height_range range)
+{
+    if (range == t_layer_height_range{0.0, 0.0})
+        return;
+    reset_pushed_button_items();
+
+    wxGetApp().obj_list()->del_layer_range(range);
 }
 
 LayerRangeEditor::LayerRangeEditor( ObjectLayers* parent,
@@ -305,7 +351,7 @@ LayerRangeEditor::LayerRangeEditor( ObjectLayers* parent,
         }
     }, this->GetId());
 
-    this->Bind(wxEVT_KILL_FOCUS, [this, edit_fn](wxFocusEvent& e)
+    this->Bind(wxEVT_KILL_FOCUS, [this, edit_fn, parent](wxFocusEvent& e)
     {
         if (!m_enter_pressed) {
 #ifndef __WXGTK__
@@ -317,6 +363,16 @@ LayerRangeEditor::LayerRangeEditor( ObjectLayers* parent,
             if (new_editor)
                 new_editor->set_focus_data();
 #endif // not __WXGTK__
+
+            ButtonType btn_type = btUndef;
+            LayerRangeButton* pushed_btn = dynamic_cast<LayerRangeButton*>(e.GetWindow());
+            if (pushed_btn) {
+                btn_type = pushed_btn->type();
+                parent->set_pushed_button_items(pushed_btn->type(), pushed_btn->range());
+            }
+            else
+                parent->reset_pushed_button_items();
+
             // If LayersList wasn't updated/recreated, we should call e.Skip()
             if (m_type & etLayerHeight) {
                 if (!edit_fn(get_value(), false))
@@ -325,9 +381,27 @@ LayerRangeEditor::LayerRangeEditor( ObjectLayers* parent,
                     m_valid_value = double_to_string(get_value());
                 e.Skip();
             }
-            else if (!edit_fn(get_value(), false)) {
-                SetValue(m_valid_value);
-                e.Skip();
+            else {
+                if (!edit_fn(get_value(), false)) {
+                    SetValue(m_valid_value);
+                    e.Skip();
+                }
+                else {
+                    /* During an editing of Stop/Start layer height values, 
+                     * we delete all old LayerRangeEditors and create a new from edited ranges.
+                     * 
+                     * In the case when values are changed in LayerRangeEditor and then pushed "Add/Delete" button,
+                     * first of all KillFocus event for this LayerRangeEditor is invoked 
+                     * and after that wxEVT_BUTTON for pushed button will precessed.
+                     * But for this moment button is deleted!
+                     * Windows resolves this problem in some way, and "Add/Delete" button's pushing just has no effect.
+                     * But under OSX the application crashes.
+                     * 
+                     * So, we should to stop event propagation if button was pushed.
+                     * */
+                    if (btn_type != btUndef)
+                        e.StopPropagation();
+                }
             } 
         }
         else if (m_call_kill_focus) {
