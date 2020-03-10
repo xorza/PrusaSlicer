@@ -380,7 +380,7 @@ void TextCtrl::BUILD() {
 		// Thus, suppress its second call
 		if (bKilledFocus) {
 			printf("%s: second call of wxEVT_KILL_FOCUS! Return\n", m_opt_id.c_str());
-			bKilledFocus = false;
+//			bKilledFocus = false;
 			return;
 		}
 		printf("\n%s: wxEVT_KILL_FOCUS\n", m_opt_id.c_str());
