@@ -159,14 +159,21 @@ void ObjectLayers::create_layers_list()
 
         sizer->Add(del_btn, 0, wxRIGHT | wxLEFT, em_unit(m_parent));
 
-        del_btn->Bind(wxEVT_BUTTON, [this, range](wxEvent &) { delete_range(range); });
+        del_btn->Bind(wxEVT_BUTTON, [this, range](wxEvent &)
+        {
+            printf("Pushed ADD button\n");
+            delete_range(range);
+        });
 
         auto add_btn = new LayerRangeButton(m_parent, m_bmp_add, range, btAdd);
         add_btn->SetToolTip(_(L("Add layer range")));
 
         sizer->Add(add_btn);
 
-        add_btn->Bind(wxEVT_BUTTON, [this, range](wxEvent &) { add_range(range); });
+        add_btn->Bind(wxEVT_BUTTON, [this, range](wxEvent &) { 
+            printf("Pushed DEL button\n");
+            add_range(range); 
+        });
     }
 
     process_btn_pushed();
@@ -351,8 +358,11 @@ LayerRangeEditor::LayerRangeEditor( ObjectLayers* parent,
         }
     }, this->GetId());
 
-    this->Bind(wxEVT_KILL_FOCUS, [this, edit_fn, parent](wxFocusEvent& e)
+    this->Bind(wxEVT_KILL_FOCUS, [this, edit_fn, parent, type](wxFocusEvent& e)
     {
+        printf("\n%s: wxEVT_KILL_FOCUS\n", type == etMinZ ? "Start" : 
+                                                  type == etMaxZ ? "Stop" : 
+                                                  type == etLayerHeight ? "LH" : "Undef");
         if (!m_enter_pressed) {
 #ifndef __WXGTK__
             /* Update data for next editor selection.
@@ -399,6 +409,13 @@ LayerRangeEditor::LayerRangeEditor( ObjectLayers* parent,
                      * 
                      * So, we should to stop event propagation if button was pushed.
                      * */
+
+                    printf("%s: UPDATED\n", type == etMinZ ? "Start" :
+                        type == etMaxZ ? "Stop" :
+                        type == etLayerHeight ? "LH" : "Undef");
+
+                    printf("Pushed button : %s\n", btn_type == btAdd ? "ADD" :
+                                                          btn_type == btDelete ? "DEL" : "Undef");
                     if (btn_type != btUndef)
                         e.StopPropagation();
                 }
