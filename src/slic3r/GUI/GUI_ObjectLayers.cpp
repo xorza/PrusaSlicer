@@ -161,7 +161,7 @@ void ObjectLayers::create_layers_list()
 
         del_btn->Bind(wxEVT_BUTTON, [this, range](wxEvent &)
         {
-            printf("Pushed ADD button\n");
+            printf("Pushed DELETE button\n");
             delete_range(range);
         });
 
@@ -171,7 +171,7 @@ void ObjectLayers::create_layers_list()
         sizer->Add(add_btn);
 
         add_btn->Bind(wxEVT_BUTTON, [this, range](wxEvent &) { 
-            printf("Pushed DEL button\n");
+            printf("Pushed ADD button\n");
             add_range(range); 
         });
     }
@@ -215,6 +215,8 @@ void ObjectLayers::update_layers_list()
         create_layers_list();
     else
         create_layer(objects_ctrl->GetModel()->GetLayerRangeByItem(item));
+
+    printf("Layers panel was created!\n");
 
     m_parent->Layout();
 }
@@ -289,12 +291,15 @@ void ObjectLayers::set_pushed_button_items(ButtonType type, const t_layer_height
 
 void ObjectLayers::reset_pushed_button_items()
 {
+    printf("inside reset_pushed_button_items()\n");
     m_pushed_btn_range = { 0.0, 0.0 };
     m_pushed_btn_type  = btUndef;
+    printf("ended reset_pushed_button_items()\n");
 }
 
 void ObjectLayers::process_btn_pushed()
 {
+    printf("inside process_btn_pushed()\n");
     if (m_pushed_btn_type == btAdd)
         add_range(m_pushed_btn_range);
     else if (m_pushed_btn_type == btDelete)
@@ -303,10 +308,12 @@ void ObjectLayers::process_btn_pushed()
 
 void ObjectLayers::add_range(const t_layer_height_range range)
 {
+    printf("inside add_range()\n");
     if (range == t_layer_height_range{0.0, 0.0})
         return;
     reset_pushed_button_items();
 
+    printf("before add_layer_range_after_current()\n");
     std::string result = wxGetApp().obj_list()->add_layer_range_after_current(range);
     if (!result.empty()) {
         wxString title = _(L("Range division has no sence"));
@@ -317,6 +324,7 @@ void ObjectLayers::add_range(const t_layer_height_range range)
 
 void ObjectLayers::delete_range(const t_layer_height_range range)
 {
+    printf("inside delete_range()\n");
     if (range == t_layer_height_range{0.0, 0.0})
         return;
     reset_pushed_button_items();

@@ -2532,8 +2532,10 @@ void ObjectList::part_selection_changed()
 
     if (printer_technology() == ptSLA)
         update_and_show_layers = false;
-    else if (update_and_show_layers)
+    else if (update_and_show_layers) {
+        printf("update_and_show_layers\n");
         wxGetApp().obj_layers()->get_og()->set_name(" " + og_name + " ");
+    }
 
     Sidebar& panel = wxGetApp().sidebar();
     panel.Freeze();

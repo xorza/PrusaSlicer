@@ -192,6 +192,7 @@ void Field::get_value_by_opt_type(wxString& str, const bool check_value/* = true
                     m_value.clear();
                     break;
                 }
+                printf("%s: Invalid numeric input from %f\n", m_opt_id.c_str(), val);
                 show_error(m_parent, _(L("Invalid numeric input.")));
                 set_value(double_to_string(val), true);
             }
@@ -223,6 +224,7 @@ void Field::get_value_by_opt_type(wxString& str, const bool check_value/* = true
                     m_value.clear();
                     break;
                 }
+				printf("%s: Invalid numeric input from %f\n", m_opt_id.c_str(), val);
                 show_error(m_parent, _(L("Invalid numeric input.")));
                 set_value(double_to_string(val), true);
             }
