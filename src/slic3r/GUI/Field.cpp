@@ -396,6 +396,10 @@ void TextCtrl::BUILD() {
 			printf("%s: propagate_value() from wxEVT_KILL_FOCUS\n", m_opt_id.c_str());
             propagate_value();
 		}
+#ifdef __WXOSX__
+		printf("%s: revert bKilledFocus to false\n", m_opt_id.c_str());
+		bKilledFocus = false;
+#endif // __WXOSX__
 	}), temp->GetId());
 
 	// select all text using Ctrl+A
