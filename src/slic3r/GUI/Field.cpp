@@ -352,7 +352,8 @@ void TextCtrl::BUILD() {
             temp->GetToolTip()->Enable(true);
 #endif // __WXGTK__
             bEnterPressed = true;
-            propagate_value();
+			printf("%s: propagate_value() from wxEVT_TEXT_ENTER\n", m_opt_id.c_str());
+			propagate_value();
         }), temp->GetId());
     }
 
@@ -378,9 +379,11 @@ void TextCtrl::BUILD() {
 		// OSX issue: For some unknown reason wxEVT_KILL_FOCUS is emitted twice in a row
 		// Thus, suppress its second call
 		if (bKilledFocus) {
+			printf("%s: second call of wxEVT_KILL_FOCUS! Return\n", m_opt_id.c_str());
 			bKilledFocus = false;
 			return;
 		}
+		printf("\n%s: wxEVT_KILL_FOCUS\n", m_opt_id.c_str());
 		bKilledFocus = true;
 #endif // __WXOSX__
 
@@ -389,8 +392,10 @@ void TextCtrl::BUILD() {
 #endif // __WXGTK__
         if (bEnterPressed)
             bEnterPressed = false;
-		else
+		else {
+			printf("%s: propagate_value() from wxEVT_KILL_FOCUS\n", m_opt_id.c_str());
             propagate_value();
+		}
 	}), temp->GetId());
 
 	// select all text using Ctrl+A
@@ -407,18 +412,24 @@ void TextCtrl::BUILD() {
 
 bool TextCtrl::value_was_changed()
 {
-    if (m_value.empty())
+    if (m_value.empty()) {
+		printf("%s: m_value is empty. value WAS changed\n", m_opt_id.c_str());
         return true;
+	}
 
     boost::any val = m_value;
     wxString ret_str = static_cast<wxTextCtrl*>(window)->GetValue();
+	std::string str = ret_str.ToStdString(); 
     // update m_value!
     // ret_str might be changed inside get_value_by_opt_type
     get_value_by_opt_type(ret_str);
 
     switch (m_opt.type) {
-    case coInt:
-        return boost::any_cast<int>(m_value) != boost::any_cast<int>(val);
+    case coInt: {
+        bool ret = boost::any_cast<int>(m_value) != boost::any_cast<int>(val);
+		printf("%s: inputed value= %s; value %s changed\n", m_opt_id.c_str(), str.c_str(), ret ? "WAS" : "was NOT");
+			return ret;
+	}
     case coPercent:
     case coPercents:
     case coFloats:
@@ -426,14 +437,19 @@ bool TextCtrl::value_was_changed()
         if (m_opt.nullable && std::isnan(boost::any_cast<double>(m_value)) && 
                               std::isnan(boost::any_cast<double>(val)))
             return false;
-        return boost::any_cast<double>(m_value) != boost::any_cast<double>(val);
+//        return boost::any_cast<double>(m_value) != boost::any_cast<double>(val);
+		bool ret = boost::any_cast<double>(m_value) != boost::any_cast<double>(val);
+		printf("%s: inputed value= %s; value %s changed\n", m_opt_id.c_str(), str.c_str(), ret ? "WAS" : "was NOT");
+		return ret;
     }
     case coString:
     case coStrings:
     case coFloatOrPercent:
         return boost::any_cast<std::string>(m_value) != boost::any_cast<std::string>(val);
-    default:
+    default: {
+		printf("default: \n");
         return true;
+		}
     }
 }
 
@@ -444,7 +460,10 @@ void TextCtrl::propagate_value()
 		// Thus, do it only when it's really needed (when undefined value was input)
         on_kill_focus();
 	else if (value_was_changed())
-        on_change_field();
+	{
+		printf("%s: on_change_field()\n", m_opt_id.c_str());
+		on_change_field();
+	}
 }
 
 void TextCtrl::set_value(const boost::any& value, bool change_event/* = false*/) {
