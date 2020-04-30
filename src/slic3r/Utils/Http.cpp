@@ -75,11 +75,11 @@ struct CurlGlobalInit
                                "network connections.");
             else
                 message = Slic3r::format(
-					_L("PrusaSlicer detected system SSL certificate store in: %1%"),
+                    _u8L("PrusaSlicer detected system SSL certificate store in: %1%"),
                     bundle);
 
             message += "\n" + Slic3r::format(
-				_L("To specify the system certificate store manually, please "
+                _u8L("To specify the system certificate store manually, please "
                    "set the %1% environment variable to the correct CA bundle "
                    "and restart the application."),
                 SSL_CA_FILE);
