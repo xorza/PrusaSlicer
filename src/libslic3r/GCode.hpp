@@ -63,6 +63,19 @@ private:
     std::unique_ptr<MotionPlanner> m_layer_mp;
 };
 
+
+
+struct CustomSeam {
+    std::vector<ExPolygons> enforcers;
+    std::vector<ExPolygons> blockers;
+
+    // Finds whether the point is inside an enforcer/blockers.
+    // Returns +1, 0 or -1.
+    int get_point_status(const Point& pt, size_t layer_id) const;
+};
+
+
+
 class OozePrevention {
 public:
     bool enable;
@@ -306,6 +319,10 @@ private:
     std::string     retract(bool toolchange = false);
     std::string     unretract() { return m_writer.unlift() + m_writer.unretract(); }
     std::string     set_extruder(unsigned int extruder_id, double print_z);
+
+
+    // Cache for custom seam enforcers/blockers for each layer.
+    CustomSeam                          m_custom_seam;
 
     /* Origin of print coordinates expressed in unscaled G-code coordinates.
        This affects the input arguments supplied to the extrude*() and travel_to()

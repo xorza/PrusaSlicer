@@ -2674,7 +2674,7 @@ void PrintObject::project_and_append_custom_supports(
 {
     for (const ModelVolume* mv : this->model_object()->volumes) {
         const indexed_triangle_set custom_facets = mv->m_supported_facets.get_facets(*mv, type);
-        if (custom_facets.indices.empty())
+        if (! mv->is_model_part() || custom_facets.indices.empty())
             continue;
 
         const Transform3f& tr1 = mv->get_matrix().cast<float>();

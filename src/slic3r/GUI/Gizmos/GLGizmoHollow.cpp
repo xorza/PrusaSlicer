@@ -312,7 +312,8 @@ bool GLGizmoHollow::gizmo_event(SLAGizmoEventType action, const Vec2d& mouse_pos
                                          pos_and_normal.second(1)/scaling(1),
                                          pos_and_normal.second(2)/scaling(2));
 
-                mo->sla_drain_holes.emplace_back(pos_and_normal.first + HoleStickOutLength * pos_and_normal.second/* normal_transformed.normalized()*/,
+                float elev = HoleStickOutLength * (normal_transformed.norm() / pos_and_normal.second.norm());
+                mo->sla_drain_holes.emplace_back(pos_and_normal.first + elev * pos_and_normal.second/* normal_transformed.normalized()*/,
                                                              -pos_and_normal.second, m_new_hole_radius, m_new_hole_height);
                 m_selected.push_back(false);
                 assert(m_selected.size() == mo->sla_drain_holes.size());
