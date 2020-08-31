@@ -970,8 +970,8 @@ namespace DoExport {
     {
         CustomSeam custom_seam;
         for (const PrintObject* po : print.objects()) {
-            po->project_and_append_custom_enforcers(custom_seam.enforcers);
-            po->project_and_append_custom_blockers(custom_seam.blockers);
+            po->project_and_append_custom_facets(true, EnforcerBlockerType::ENFORCER, custom_seam.enforcers);
+            po->project_and_append_custom_facets(true, EnforcerBlockerType::BLOCKER, custom_seam.blockers);
         }
         for (ExPolygons& explgs : custom_seam.enforcers) {
             explgs = Slic3r::offset_ex(explgs, scale_(0.5));
