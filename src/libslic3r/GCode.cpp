@@ -966,9 +966,9 @@ namespace DoExport {
 	    return volumetric_speed;
 	}
 
-    static void collect_custom_seam(const Print& print, CustomSeam& custom_seam)
+    static CustomSeam collect_custom_seam(const Print& print)
     {
-        custom_seam = CustomSeam();
+        CustomSeam custom_seam;
         for (const PrintObject* po : print.objects()) {
             po->project_and_append_custom_enforcers(custom_seam.enforcers);
             po->project_and_append_custom_blockers(custom_seam.blockers);
@@ -979,6 +979,7 @@ namespace DoExport {
         for (ExPolygons& explgs : custom_seam.blockers) {
             explgs = Slic3r::offset_ex(explgs, scale_(0.5));
         }
+        return custom_seam;
     }
 
 	static void init_ooze_prevention(const Print &print, OozePrevention &ooze_prevention)
@@ -1408,7 +1409,7 @@ void GCode::_do_export(Print& print, FILE* file, ThumbnailsGeneratorCallback thu
     print.throw_if_canceled();
 
     // Collect custom seam data from all objects.
-    DoExport::collect_custom_seam(print, m_custom_seam);
+    m_custom_seam = DoExport::collect_custom_seam(print);
     
     if (! (has_wipe_tower && print.config().single_extruder_multi_material_priming)) {
         // Set initial extruder only after custom start G-code.
@@ -2629,6 +2630,88 @@ std::vector<float> polygon_angles_at_vertices(const Polygon &polygon, const std:
     return angles;
 }
 
+
+
+
+static void densify_polygon(Polygon& polygon,
+                            std::vector<float>& lengths,
+                            float min_length)
+{
+    assert(polygon.points.size() == lengths.size() - 1);
+
+    for (size_t i=1; i<polygon.points.size(); ++i) {
+        if (lengths[i] - lengths[i-1] > min_length) {
+
+            Point diff = polygon.points[i] - polygon.points[i-1];
+            float diff_len = lengths[i] - lengths[i-1];
+            float r = (min_length/diff_len);
+            Point new_pt = polygon.points[i-1] + Point(r*diff[0], r*diff[1]);
+            polygon.points.insert(polygon.points.begin() + i, new_pt);
+            lengths.insert(lengths.begin() + i, lengths[i-1] + min_length);
+        }
+    }
+    assert(polygon.points.size() == lengths.size() - 1);
+}
+
+// Go through the polygon, identify points inside support enforcers
+static void add_enforcer_centers(Polygon& polygon, std::vector<float>& penalties, std::vector<float>& lengths)
+{
+    assert(polygon.points.size() == penalties.size());
+    assert(polygon.points.size() == lengths.size() - 1);
+    if (polygon.size() < 2)
+        return;
+
+    bool inside_enforcer = false; // penalties[0] < -1000.f;
+    float t_start = 0.f;
+    std::vector<float> extra_points_t;
+
+    // Penalties under -1000 are points inside enforcers.
+    for (size_t i = 1; i < polygon.points.size(); ++i) {
+        if (penalties[i] > -1000.f) {
+            if (inside_enforcer) { // enforcer just ended
+                float t_center = t_start + 0.5f * (lengths[i-1] - t_start);
+                extra_points_t.push_back(t_center);
+            }
+            inside_enforcer = false;
+        } else if (! inside_enforcer) {
+            t_start = lengths[i];
+            inside_enforcer = true;
+        }
+    }
+
+    if (extra_points_t.empty())
+        return;
+
+    // extra_points_t now holds lengths where we want an extra point added. Do it.
+    size_t extra_pt_idx = 0;
+    float next_extra_t = extra_points_t[0];
+    for (size_t i=1; i<polygon.points.size(); ++i) {
+        bool added = false;
+        if (lengths[i-1] < next_extra_t && lengths[i] > next_extra_t) {
+            // add point to i-th position
+            Point diff = polygon.points[i] - polygon.points[i-1];
+            float diff_len = lengths[i] - lengths[i-1];
+            float r = ((next_extra_t - lengths[i-1])/diff_len);
+            Point new_pt = polygon.points[i-1] + Point(r*diff[0], r*diff[1]);
+            polygon.points.insert(polygon.points.begin() + i, new_pt);
+            penalties.insert(penalties.begin() + i, -10000000);
+            lengths.insert(lengths.begin() + i, next_extra_t);
+            added = true;
+        }
+        if (added || lengths[i-1] == next_extra_t) {
+            if (! added)
+                penalties[i-1] = -10000000;
+            // get ready for the next one
+            ++extra_pt_idx;
+            if (extra_pt_idx >= extra_points_t.size())
+                break;
+            next_extra_t = extra_points_t[extra_pt_idx];
+        }
+    }
+
+
+}
+
 std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, double speed, std::unique_ptr<EdgeGrid::Grid> *lower_layer_edge_grid)
 {
     // get a copy; don't modify the orientation of the original loop object otherwise
@@ -2698,6 +2781,8 @@ std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, dou
 
         // Parametrize the polygon by its length.
         std::vector<float> lengths = polygon_parameter_by_length(polygon);
+        if (m_custom_seam.is_on_layer(m_layer->id()))
+            densify_polygon(polygon, lengths, scale_(0.5));
 
         // For each polygon point, store a penalty.
         // First calculate the angles, store them as penalties. The angles are caluculated over a minimum arm length of nozzle_r.
@@ -2738,8 +2823,8 @@ std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, dou
         // Penalty for overhangs.
         if (lower_layer_edge_grid && (*lower_layer_edge_grid)) {
             // Use the edge grid distance field structure over the lower layer to calculate overhangs.
-            coord_t nozzle_r = coord_t(floor(scale_(0.5 * nozzle_dmr) + 0.5));
-            coord_t search_r = coord_t(floor(scale_(0.8 * nozzle_dmr) + 0.5));
+            coord_t nozzle_r = coord_t(std::floor(scale_(0.5 * nozzle_dmr) + 0.5));
+            coord_t search_r = coord_t(std::floor(scale_(0.8 * nozzle_dmr) + 0.5));
             for (size_t i = 0; i < polygon.points.size(); ++ i) {
                 const Point &p = polygon.points[i];
                 coordf_t dist;
@@ -2761,6 +2846,8 @@ std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, dou
             penalties[i] -= float(100000 * m_custom_seam.get_point_status(p, m_layer->id()));
         }
 
+        add_enforcer_centers(polygon, penalties, lengths);
+
         // Find a point with a minimum penalty.
         size_t idx_min = std::min_element(penalties.begin(), penalties.end()) - penalties.begin();
 
@@ -2774,7 +2861,7 @@ std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, dou
             float penalty_max      = std::max(penalty_min, penalty_aligned);
             float penalty_diff_rel = (penalty_max == 0.f) ? 0.f : penalty_diff_abs / penalty_max;
             // printf("Align seams, penalty aligned: %f, min: %f, diff abs: %f, diff rel: %f\n", penalty_aligned, penalty_min, penalty_diff_abs, penalty_diff_rel);
-            if (penalty_diff_rel < 0.05) {
+            if (std::abs(penalty_diff_rel) < 0.05) {
                 // Penalty of the aligned point is very close to the minimum penalty.
                 // Align the seams as accurately as possible.
                 idx_min = last_pos_proj_idx;
@@ -2792,7 +2879,18 @@ std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, dou
 //            svg.draw(m_custom_seam.enforcers[layer_id], "blue");
 //        if (! m_custom_seam.blockers.empty())
 //            svg.draw(m_custom_seam.blockers[layer_id], "red");
-//        svg.draw(polygon.points, "black");
+
+//        svg.draw(polygon.points[idx_min], "red", 6e5);
+//        for (size_t i=0; i<polygon.points.size(); ++i) {
+//            std::string fill;
+//            coord_t size = 0;
+//            if (penalties[i] < -1000000.) {
+//                fill = "yellow";
+//                size = 5e5;
+//            } else
+//                fill = (penalties[i] < -10000 ? "green" : "black");
+//            svg.draw(polygon.points[i], i==0 ? "red" : fill, size);
+//        }
 ////////////////////
 
 

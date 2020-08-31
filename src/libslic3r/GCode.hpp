@@ -72,6 +72,9 @@ struct CustomSeam {
     // Finds whether the point is inside an enforcer/blockers.
     // Returns +1, 0 or -1.
     int get_point_status(const Point& pt, size_t layer_id) const;
+    bool is_on_layer(size_t layer_id) const {
+        return ! ((enforcers.empty() || enforcers[layer_id].empty()) && (blockers.empty() || blockers[layer_id].empty()));
+    }
 };
 
 
