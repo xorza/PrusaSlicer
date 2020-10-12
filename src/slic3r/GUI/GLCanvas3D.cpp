@@ -3214,7 +3214,7 @@ void GLCanvas3D::on_key(wxKeyEvent& evt)
                     // m_canvas->HandleAsNavigationKey(evt);   // XXX: Doesn't work in some cases / on Linux
                     post_event(SimpleEvent(EVT_GLCANVAS_TAB));
                 }
-                else if (keyCode == WXK_TAB && evt.ShiftDown()) {
+                else if (m_tab_down && keyCode == WXK_TAB && evt.ShiftDown()) {
                     // Collapse side-panel with Shift+Tab
                     post_event(SimpleEvent(EVT_GLCANVAS_COLLAPSE_SIDEBAR));
                 }
@@ -3270,7 +3270,7 @@ void GLCanvas3D::on_key(wxKeyEvent& evt)
                 }
             }
             else if (evt.GetEventType() == wxEVT_KEY_DOWN) {
-                m_tab_down = keyCode == WXK_TAB && !evt.HasAnyModifiers();
+                m_tab_down = keyCode == WXK_TAB && (!evt.HasAnyModifiers() || evt.ShiftDown());
                 if (keyCode == WXK_SHIFT)
                 {
                     translationProcessor.process(evt);
