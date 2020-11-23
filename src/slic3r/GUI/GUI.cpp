@@ -21,6 +21,9 @@
 
 #include "libslic3r/Print.hpp"
 
+#include "Plater.hpp"
+#include "NotificationManager.hpp"
+
 namespace Slic3r {
 
 class AppConfig;
@@ -221,16 +224,20 @@ void change_opt_value(DynamicPrintConfig& config, const t_config_option_key& opt
 	}
 }
 
-void show_error(wxWindow* parent, const wxString& message)
+void show_error(wxWindow* parent, const wxString& message, bool notification)
 {
-	ErrorDialog msg(parent, message);
-	msg.ShowModal();
+	if (notification) {
+		wxGetApp().plater()->get_notification_manager()->push_plater_error_notification(boost::nowide::narrow(message), *(wxGetApp().plater()->get_current_canvas3D()));
+	} else {
+		ErrorDialog msg(parent, message);
+		msg.ShowModal();
+	}
 }
 
-void show_error(wxWindow* parent, const char* message)
+void show_error(wxWindow* parent, const char* message, bool notification)
 {
 	assert(message);
-	show_error(parent, wxString::FromUTF8(message));
+	show_error(parent, wxString::FromUTF8(message), notification);
 }
 
 void show_error_id(int id, const std::string& message)
