@@ -843,9 +843,10 @@ void Selection::flattening_rotate(const Vec3d& normal)
     {
         // Normal transformed from the object coordinate space to the world coordinate space.
         const auto &voldata = m_cache.volumes_data[i];
+        const Vec3d& sf = voldata.get_instance_scaling_factor();
         Vec3d tnormal = (Geometry::assemble_transform(
             Vec3d::Zero(), voldata.get_instance_rotation(), 
-            voldata.get_instance_scaling_factor(), voldata.get_instance_mirror()) * normal).normalized();
+            Vec3d(1./sf(0), 1./sf(1), 1./sf(2)), voldata.get_instance_mirror()) * normal).normalized();
         // Additional rotation to align tnormal with the down vector in the world coordinate space.
         auto  extra_rotation = Eigen::Quaterniond().setFromTwoVectors(tnormal, - Vec3d::UnitZ());
         (*m_volumes)[i]->set_instance_rotation(Geometry::extract_euler_angles(extra_rotation.toRotationMatrix() * m_cache.volumes_data[i].get_instance_rotation_matrix()));
