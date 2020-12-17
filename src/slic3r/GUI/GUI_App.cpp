@@ -627,6 +627,10 @@ void GUI_App::post_init()
         if (! this->init_params->extra_config.empty())
             this->mainframe->load_config(this->init_params->extra_config);
     }
+
+    // Creating PresetUpdater here, fix application crash in the splash screen in case copy_file_fix throw an exception.
+    if (is_editor())
+        preset_updater = new PresetUpdater();
 }
 
 IMPLEMENT_APP(GUI_App)
@@ -825,7 +829,6 @@ bool GUI_App::on_init_inner()
 #endif // ENABLE_CUSTOMIZABLE_FILES_ASSOCIATION_ON_WIN
 #endif // __WXMSW__
 
-        preset_updater = new PresetUpdater();
         Bind(EVT_SLIC3R_VERSION_ONLINE, [this](const wxCommandEvent& evt) {
             app_config->set("version_online", into_u8(evt.GetString()));
             app_config->save();
