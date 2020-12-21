@@ -109,6 +109,7 @@ private:
     bool            m_app_conf_exists{ false };
     EAppMode        m_app_mode{ EAppMode::Editor };
     bool            m_is_recreating_gui{ false };
+    bool            m_glcontext_initialized { false };
 
     wxColour        m_color_label_modified;
     wxColour        m_color_label_sys;

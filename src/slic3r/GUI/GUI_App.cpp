@@ -600,9 +600,14 @@ static void generic_exception_handle()
 
 void GUI_App::post_init()
 {
+    BOOST_LOG_TRIVIAL(debug) << "GUI_App::post_init: Begin";
     assert(initialized());
     if (! this->initialized())
         throw Slic3r::RuntimeError("Calling post_init() while not yet initialized");
+
+#ifdef __linux__
+    this->init_opengl();
+#endif
 
     if (this->init_params->start_as_gcodeviewer) {
         if (! this->init_params->input_files.empty())
@@ -628,6 +633,7 @@ void GUI_App::post_init()
         if (! this->init_params->extra_config.empty())
             this->mainframe->load_config(this->init_params->extra_config);
     }
+    BOOST_LOG_TRIVIAL(debug) << "GUI_App::post_init: End";
 }
 
 IMPLEMENT_APP(GUI_App)
@@ -664,12 +670,22 @@ std::string GUI_App::get_gl_info(bool format_as_html, bool extensions)
 
 wxGLContext* GUI_App::init_glcontext(wxGLCanvas& canvas)
 {
-    return m_opengl_mgr.init_glcontext(canvas);
+    BOOST_LOG_TRIVIAL(debug) << "GUI_App::init_glcontext";
+    wxGLContext* context = m_opengl_mgr.init_glcontext(canvas);
+    if(context == nullptr)
+        BOOST_LOG_TRIVIAL(debug) << "GUI_App::init_glcontext: m_opengl_mgr.init_glcontext failed";
+#ifdef __linux__
+    m_glcontext_initialized = true;
+#endif
+    return context;
 }
 
 bool GUI_App::init_opengl()
 {
-    return m_opengl_mgr.init_gl();
+    BOOST_LOG_TRIVIAL(debug) << "GUI_App::init_opengl";
+    int rc = m_opengl_mgr.init_gl();
+    BOOST_LOG_TRIVIAL(debug) << "GUI_App::init_opengl: rc = " << rc;
+    return rc;
 }
 
 void GUI_App::init_app_config()
@@ -916,7 +932,7 @@ bool GUI_App::on_init_inner()
         this->obj_manipul()->update_if_dirty();
 
         static bool update_gui_after_init = true;
-        if (update_gui_after_init) {
+        if (update_gui_after_init && m_glcontext_initialized) {
             update_gui_after_init = false;
 #ifdef WIN32
             this->mainframe->register_win32_callbacks();

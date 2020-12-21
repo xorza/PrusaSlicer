@@ -20,6 +20,8 @@
 #include <wx/combo.h>
 #include <wx/checkbox.h>
 
+#include <boost/log/trivial.hpp>
+
 // this include must follow the wxWidgets ones or it won't compile on Windows -> see http://trac.wxwidgets.org/ticket/2421
 #include "libslic3r/Print.hpp"
 #include "libslic3r/SLAPrint.hpp"
@@ -45,6 +47,7 @@ View3D::~View3D()
 
 bool View3D::init(wxWindow* parent, Model* model, DynamicPrintConfig* config, BackgroundSlicingProcess* process)
 {
+    BOOST_LOG_TRIVIAL(debug) << "View3D::init - Begin";
     if (!Create(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0 /* disable wxTAB_TRAVERSAL */))
         return false;
 
@@ -53,6 +56,8 @@ bool View3D::init(wxWindow* parent, Model* model, DynamicPrintConfig* config, Ba
         return false;
 
     m_canvas = new GLCanvas3D(m_canvas_widget);
+    if(m_canvas == nullptr)
+        BOOST_LOG_TRIVIAL(debug) << "View3D::init: GLCanvas3D init failed";
     m_canvas->set_context(wxGetApp().init_glcontext(*m_canvas_widget));
 
     m_canvas->allow_multisample(OpenGLManager::can_multisample());
@@ -77,6 +82,7 @@ bool View3D::init(wxWindow* parent, Model* model, DynamicPrintConfig* config, Ba
     SetMinSize(GetSize());
     GetSizer()->SetSizeHints(this);
 
+    BOOST_LOG_TRIVIAL(debug) << "View3D::init - End";
     return true;
 }
 
@@ -183,8 +189,11 @@ Preview::Preview(
 
 bool Preview::init(wxWindow* parent, Model* model)
 {
-    if (!Create(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0 /* disable wxTAB_TRAVERSAL */))
+    BOOST_LOG_TRIVIAL(debug) << "Preview::init - Begin";
+    if (!Create(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0 /* disable wxTAB_TRAVERSAL */)) {
+        BOOST_LOG_TRIVIAL(debug) << "Preview::init: Create failed";
         return false;
+    }
 
     // to match the background of the sliders
 #ifdef _WIN32 
@@ -195,9 +204,13 @@ bool Preview::init(wxWindow* parent, Model* model)
 
     m_canvas_widget = OpenGLManager::create_wxglcanvas(*this);
     if (m_canvas_widget == nullptr)
+        BOOST_LOG_TRIVIAL(debug) << "Preview::init: OpenGLManager::create_wxglcanvas failed";
+    if (m_canvas_widget == nullptr)
         return false;
 
     m_canvas = new GLCanvas3D(m_canvas_widget);
+    if (m_canvas == nullptr)
+        BOOST_LOG_TRIVIAL(debug) << "Preview::init: GLCanvas3D init failed";
     m_canvas->set_context(wxGetApp().init_glcontext(*m_canvas_widget));
     m_canvas->allow_multisample(OpenGLManager::can_multisample());
     m_canvas->set_config(m_config);
@@ -297,7 +310,8 @@ bool Preview::init(wxWindow* parent, Model* model)
     GetSizer()->SetSizeHints(this);
 
     bind_event_handlers();
-    
+
+    BOOST_LOG_TRIVIAL(debug) << "Preview::init - End";
     return true;
 }
 

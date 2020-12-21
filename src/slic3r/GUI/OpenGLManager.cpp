@@ -107,7 +107,7 @@ void OpenGLManager::GLInfo::detect() const
     if (GLEW_EXT_texture_filter_anisotropic)
         glsafe(::glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &m_max_anisotropy));
 
-    m_detected = true;
+    m_detected = m_version != "N/A";
 }
 
 static bool version_greater_or_equal_to(const std::string& version, unsigned int major, unsigned int minor)
@@ -234,6 +234,7 @@ OpenGLManager::~OpenGLManager()
 
 bool OpenGLManager::init_gl()
 {
+    BOOST_LOG_TRIVIAL(debug) << "OpenGLManager::init_gl: Begin";
     if (!m_gl_initialized) {
         if (glewInit() != GLEW_OK) {
             BOOST_LOG_TRIVIAL(error) << "Unable to init glew library";
@@ -278,6 +279,7 @@ bool OpenGLManager::init_gl()
         }
     }
 
+    BOOST_LOG_TRIVIAL(debug) << "OpenGLManager::init_gl: Begin";
     return true;
 }
 
