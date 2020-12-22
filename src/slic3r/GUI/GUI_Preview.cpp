@@ -444,20 +444,24 @@ void Preview::edit_layers_slider(wxKeyEvent& evt)
 
 void Preview::bind_event_handlers()
 {
+    BOOST_LOG_TRIVIAL(debug) << "Preview::bind_event_handlers(): Begin";
     this->Bind(wxEVT_SIZE, &Preview::on_size, this);
     m_choice_view_type->Bind(wxEVT_CHOICE, &Preview::on_choice_view_type, this);
     m_combochecklist_features->Bind(wxEVT_CHECKLISTBOX, &Preview::on_combochecklist_features, this);
     m_combochecklist_options->Bind(wxEVT_CHECKLISTBOX, &Preview::on_combochecklist_options, this);
     m_moves_slider->Bind(wxEVT_SCROLL_CHANGED, &Preview::on_moves_slider_scroll_changed, this);
+    BOOST_LOG_TRIVIAL(debug) << "Preview::bind_event_handlers(): End";
 }
 
 void Preview::unbind_event_handlers()
 {
+    BOOST_LOG_TRIVIAL(debug) << "Preview::unbind_event_handlers(): Begin";
     this->Unbind(wxEVT_SIZE, &Preview::on_size, this);
     m_choice_view_type->Unbind(wxEVT_CHOICE, &Preview::on_choice_view_type, this);
     m_combochecklist_features->Unbind(wxEVT_CHECKLISTBOX, &Preview::on_combochecklist_features, this);
     m_combochecklist_options->Unbind(wxEVT_CHECKLISTBOX, &Preview::on_combochecklist_options, this);
     m_moves_slider->Unbind(wxEVT_SCROLL_CHANGED, &Preview::on_moves_slider_scroll_changed, this);
+    BOOST_LOG_TRIVIAL(debug) << "Preview::unbind_event_handlers(): Begin";
 }
 
 #if ENABLE_ARROW_KEYS_WITH_SLIDERS

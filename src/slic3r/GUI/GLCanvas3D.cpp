@@ -1576,6 +1576,7 @@ void GLCanvas3D::update_volumes_colors_by_extruder()
 
 void GLCanvas3D::render()
 {
+    BOOST_LOG_TRIVIAL(debug) << "GLCanvas3D::render(): Begin";
     if (m_in_render) {
         // if called recursively, return
         m_dirty = true;
@@ -1755,6 +1756,7 @@ void GLCanvas3D::render()
     auto end_time = std::chrono::high_resolution_clock::now();
     m_render_stats.add_frame(std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());
 #endif // ENABLE_RENDER_STATISTICS
+    BOOST_LOG_TRIVIAL(debug) << "GLCanvas3D::render(): End";
 }
 
 void GLCanvas3D::render_thumbnail(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, bool printable_only, bool parts_only, bool show_bed, bool transparent_background) const
@@ -2346,7 +2348,9 @@ void GLCanvas3D::load_preview(const std::vector<std::string>& str_tool_colors, c
 
 void GLCanvas3D::bind_event_handlers()
 {
+    BOOST_LOG_TRIVIAL(debug) << "GLCanvas3D::bind_event_handlers(): Begin";
     if (m_canvas != nullptr) {
+        BOOST_LOG_TRIVIAL(debug) << "GLCanvas3D::bind_event_handlers(): m_canvas != nullptr";
         m_canvas->Bind(wxEVT_SIZE, &GLCanvas3D::on_size, this);
         m_canvas->Bind(wxEVT_IDLE, &GLCanvas3D::on_idle, this);
         m_canvas->Bind(wxEVT_CHAR, &GLCanvas3D::on_char, this);
@@ -2372,10 +2376,12 @@ void GLCanvas3D::bind_event_handlers()
 
         m_event_handlers_bound = true;
     }
+    BOOST_LOG_TRIVIAL(debug) << "GLCanvas3D::bind_event_handlers(): End";
 }
 
 void GLCanvas3D::unbind_event_handlers()
 {
+    BOOST_LOG_TRIVIAL(debug) << "GLCanvas3D::unbind_event_handlers(): Begin";
     if (m_canvas != nullptr && m_event_handlers_bound) {
         m_canvas->Unbind(wxEVT_SIZE, &GLCanvas3D::on_size, this);
         m_canvas->Unbind(wxEVT_IDLE, &GLCanvas3D::on_idle, this);
@@ -2402,6 +2408,7 @@ void GLCanvas3D::unbind_event_handlers()
 
         m_event_handlers_bound = false;
     }
+    BOOST_LOG_TRIVIAL(debug) << "GLCanvas3D::unbind_event_handlers(): End";
 }
 
 void GLCanvas3D::on_size(wxSizeEvent& evt)

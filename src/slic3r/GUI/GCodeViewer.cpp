@@ -488,6 +488,7 @@ void GCodeViewer::reset()
 
 void GCodeViewer::render() const
 {
+    BOOST_LOG_TRIVIAL(debug) << "GCodeViewer::render(): Begin";
     auto init_gl_data = [this]() {
         // initializes opengl data of TBuffers
         for (size_t i = 0; i < m_buffers.size(); ++i) {
@@ -548,6 +549,7 @@ void GCodeViewer::render() const
 #if ENABLE_GCODE_VIEWER_STATISTICS
     render_statistics();
 #endif // ENABLE_GCODE_VIEWER_STATISTICS
+    BOOST_LOG_TRIVIAL(debug) << "GCodeViewer::render(): End";
 }
 
 void GCodeViewer::update_sequential_view_current(unsigned int first, unsigned int last)

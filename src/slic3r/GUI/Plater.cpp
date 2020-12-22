@@ -3420,6 +3420,7 @@ void Plater::priv::fix_through_netfabb(const int obj_idx, const int vol_idx/* = 
 
 void Plater::priv::set_current_panel(wxPanel* panel)
 {
+    BOOST_LOG_TRIVIAL(debug) << "Plater::priv::set_current_panel(): Begin";
     if (std::find(panels.begin(), panels.end(), panel) == panels.end())
         return;
 
@@ -3456,6 +3457,7 @@ void Plater::priv::set_current_panel(wxPanel* panel)
     panel_sizer->Layout();
 
     if (current_panel == view3D) {
+        BOOST_LOG_TRIVIAL(debug) << "Plater::priv::set_current_panel(): current_panel == view3D";
         if (old_panel == preview)
             preview->get_canvas3d()->unbind_event_handlers();
 
@@ -3478,6 +3480,7 @@ void Plater::priv::set_current_panel(wxPanel* panel)
             notification_manager->set_in_preview(false);
     }
     else if (current_panel == preview) {
+        BOOST_LOG_TRIVIAL(debug) << "Plater::priv::set_current_panel(): current_panel == preview";
         if (old_panel == view3D)
             view3D->get_canvas3d()->unbind_event_handlers();
 
@@ -4839,6 +4842,7 @@ void Plater::load_gcode()
 
 void Plater::load_gcode(const wxString& filename)
 {
+    BOOST_LOG_TRIVIAL(debug) << "Plater::load_gcode(): Begin";
     if (filename.empty() ||
         (!filename.Lower().EndsWith(".gcode") && !filename.Lower().EndsWith(".g")) ||
         m_last_loaded_gcode == filename)
@@ -4849,8 +4853,11 @@ void Plater::load_gcode(const wxString& filename)
     // cleanup view before to start loading/processing
     p->gcode_result.reset();
     reset_gcode_toolpaths();
+    BOOST_LOG_TRIVIAL(debug) << "Plater::load_gcode(): Before p->preview->reload_print(false)";
     p->preview->reload_print(false);
+    BOOST_LOG_TRIVIAL(debug) << "Plater::load_gcode(): After p->preview->reload_print(false)";
     p->get_current_canvas3D()->render();
+    BOOST_LOG_TRIVIAL(debug) << "Plater::load_gcode(): After p->get_current_canvas3D()->render()";
 
     wxBusyCursor wait;
 
@@ -4871,6 +4878,7 @@ void Plater::load_gcode(const wxString& filename)
     }
     else
         set_project_filename(filename);
+    BOOST_LOG_TRIVIAL(debug) << "Plater::load_gcode(): End";
 }
 
 void Plater::reload_gcode_from_disk()

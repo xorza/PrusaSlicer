@@ -685,6 +685,9 @@ bool GUI_App::init_opengl()
     BOOST_LOG_TRIVIAL(debug) << "GUI_App::init_opengl";
     int rc = m_opengl_mgr.init_gl();
     BOOST_LOG_TRIVIAL(debug) << "GUI_App::init_opengl: rc = " << rc;
+#ifdef __linux__
+    m_opengl_initialized = true;
+#endif
     return rc;
 }
 
@@ -932,7 +935,7 @@ bool GUI_App::on_init_inner()
         this->obj_manipul()->update_if_dirty();
 
         static bool update_gui_after_init = true;
-        if (update_gui_after_init && m_glcontext_initialized) {
+        if (update_gui_after_init && m_glcontext_initialized && m_opengl_initialized) {
             update_gui_after_init = false;
 #ifdef WIN32
             this->mainframe->register_win32_callbacks();
