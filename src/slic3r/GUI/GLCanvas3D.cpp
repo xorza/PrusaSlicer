@@ -3349,7 +3349,11 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
                     // See GH issue #3816.
                     Camera& camera = wxGetApp().plater()->get_camera();
                     camera.recover_from_free_camera();
+#ifdef __linux__
+                    if (wxGetApp().m_viewer_render_done)
+#endif
                     camera.rotate_on_sphere(rot.x(), rot.y(), wxGetApp().preset_bundle->printers.get_edited_preset().printer_technology() != ptSLA);
+
                 }
 
                 m_dirty = true;

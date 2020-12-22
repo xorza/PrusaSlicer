@@ -216,6 +216,10 @@ public:
 
     virtual bool OnExceptionInMainLoop() override;
 
+#ifdef __linux__
+    bool            m_viewer_render_done { false };
+#endif
+
 #ifdef __APPLE__
     void            OSXStoreOpenFiles(const wxArrayString &files) override;
     // wxWidgets override to get an event on open files.

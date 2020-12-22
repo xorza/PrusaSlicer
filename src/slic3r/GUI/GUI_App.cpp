@@ -917,11 +917,21 @@ bool GUI_App::on_init_inner()
 
         static bool update_gui_after_init = true;
         if (update_gui_after_init) {
-            update_gui_after_init = false;
-#ifdef WIN32
-            this->mainframe->register_win32_callbacks();
+#ifdef __linux__
+            if (m_viewer_render_done)
 #endif
-            this->post_init();
+            {
+                update_gui_after_init = false;
+#ifdef WIN32
+                this->mainframe->register_win32_callbacks();
+#endif
+                std::cout << "**** JDU VOLAT post_init..." << std::endl;
+                this->post_init();
+            }
+#ifdef __linux__
+            else
+                std::cout << "**** CHTEL JSEM VOLAT post_init, ale zatim nebyl render..." << std::endl;
+#endif
         }
 
         // Preset updating & Configwizard are done after the above initializations,

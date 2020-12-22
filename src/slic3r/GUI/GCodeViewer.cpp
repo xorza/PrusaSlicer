@@ -534,6 +534,13 @@ void GCodeViewer::render() const
     if (!m_gl_data_initialized)
         init_gl_data();
 
+#ifdef __linux__
+    if (! wxGetApp().m_viewer_render_done) {
+        std::cout << "**** PRVNI RENDER..." << std::endl;
+        wxGetApp().m_viewer_render_done = true;
+    }
+#endif
+
     if (m_roles.empty())
         return;
 
