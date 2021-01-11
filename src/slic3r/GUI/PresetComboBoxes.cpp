@@ -889,7 +889,7 @@ void PlaterPresetComboBox::update()
 
     // Update control min size after rescale (changed Display DPI under MSW)
     if (GetMinWidth() != 20 * m_em_unit)
-        SetMinSize(wxSize(20 * m_em_unit, GetSize().GetHeight()));
+        SetMinSize(wxSize(20 * m_em_unit, GetMinClientSize().GetHeight()));
 }
 
 void PlaterPresetComboBox::msw_rescale()
