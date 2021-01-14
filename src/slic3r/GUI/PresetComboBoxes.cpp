@@ -208,6 +208,21 @@ void PresetComboBox::update_selection()
 #endif
 }
 
+static std::string suffix(const Preset& preset)
+{
+    return (preset.is_dirty ? Preset::suffix_modified() : "");
+}
+
+static std::string suffix(Preset* preset)
+{
+    return (preset->is_dirty ? Preset::suffix_modified() : "");
+}
+
+wxString PresetComboBox::get_preset_name(const Preset & preset)
+{
+    return from_u8(preset.name/* + suffix(preset)*/);
+}
+
 void PresetComboBox::update(std::string select_preset_name)
 {
     Freeze();
@@ -246,17 +261,17 @@ void PresetComboBox::update(std::string select_preset_name)
         assert(bmp);
 
         if (!is_enabled)
-            incomp_presets.emplace(wxString::FromUTF8((preset.name + (preset.is_dirty ? Preset::suffix_modified() : "")).c_str()), bmp);
+            incomp_presets.emplace(get_preset_name(preset), bmp);
         else if (preset.is_default || preset.is_system)
         {
-            Append(wxString::FromUTF8((preset.name + (preset.is_dirty ? Preset::suffix_modified() : "")).c_str()), *bmp);
+            Append(get_preset_name(preset), *bmp);
             validate_selection(preset.name == select_preset_name);
         }
         else
         {
-            nonsys_presets.emplace(wxString::FromUTF8((preset.name + (preset.is_dirty ? Preset::suffix_modified() : "")).c_str()), std::pair<wxBitmap*, bool>(bmp, is_enabled));
+            nonsys_presets.emplace(get_preset_name(preset), std::pair<wxBitmap*, bool>(bmp, is_enabled));
             if (preset.name == select_preset_name || (select_preset_name.empty() && is_enabled))
-                selected = wxString::FromUTF8((preset.name + (preset.is_dirty ? Preset::suffix_modified() : "")).c_str());
+                selected = get_preset_name(preset);
         }
         if (i + 1 == m_collection->num_default_presets())
             set_label_marker(Append(separator(L("System presets")), wxNullBitmap));
@@ -745,6 +760,12 @@ void PlaterPresetComboBox::show_edit_menu()
     wxGetApp().plater()->PopupMenu(menu);
 }
 
+wxString PlaterPresetComboBox::get_preset_name(const Preset& preset)
+{
+    std::string name = preset.alias.empty() ? preset.name : preset.alias;
+    return from_u8(name + suffix(preset));
+}
+
 // Only the compatible presets are shown.
 // If an incompatible preset is selected, it is shown as well.
 void PlaterPresetComboBox::update()
@@ -821,17 +842,17 @@ void PlaterPresetComboBox::update()
 
         const std::string name = preset.alias.empty() ? preset.name : preset.alias;
         if (preset.is_default || preset.is_system) {
-            Append(wxString::FromUTF8((name + (preset.is_dirty ? Preset::suffix_modified() : "")).c_str()), *bmp);
+            Append(get_preset_name(preset), *bmp);
             validate_selection(is_selected);
             if (is_selected)
-                tooltip = wxString::FromUTF8(preset.name.c_str());
+                tooltip = from_u8(preset.name);
         }
         else
         {
-            nonsys_presets.emplace(wxString::FromUTF8((name + (preset.is_dirty ? Preset::suffix_modified() : "")).c_str()), bmp);
+            nonsys_presets.emplace(get_preset_name(preset), bmp);
             if (is_selected) {
-                selected_user_preset = wxString::FromUTF8((name + (preset.is_dirty ? Preset::suffix_modified() : "")).c_str());
-                tooltip = wxString::FromUTF8(preset.name.c_str());
+                selected_user_preset = get_preset_name(preset);
+                tooltip = from_u8(preset.name);
             }
         }
         if (i + 1 == m_collection->num_default_presets())
@@ -862,7 +883,7 @@ void PlaterPresetComboBox::update()
                     wxBitmap* bmp = get_bmp(main_icon_name, wide_icons, main_icon_name);
                     assert(bmp);
 
-                    set_label_marker(Append(wxString::FromUTF8((it->get_full_name(preset_name) + (preset->is_dirty ? Preset::suffix_modified() : "")).c_str()), *bmp), LABEL_ITEM_PHYSICAL_PRINTER);
+                    set_label_marker(Append(from_u8(it->get_full_name(preset_name) + suffix(preset)), *bmp), LABEL_ITEM_PHYSICAL_PRINTER);
                     validate_selection(ph_printers.is_selected(it, preset_name));
                 }
             }
@@ -946,6 +967,11 @@ TabPresetComboBox::TabPresetComboBox(wxWindow* parent, Preset::Type preset_type)
     });
 }
 
+wxString TabPresetComboBox::get_preset_name(const Preset& preset)
+{
+    return from_u8(preset.name + suffix(preset));
+}
+
 // Update the choice UI from the list of presets.
 // If show_incompatible, all presets are shown, otherwise only the compatible presets are shown.
 // If an incompatible preset is selected, it is shown as well.
@@ -991,7 +1017,7 @@ void TabPresetComboBox::update()
         assert(bmp);
 
         if (preset.is_default || preset.is_system) {
-            int item_id = Append(wxString::FromUTF8((preset.name + (preset.is_dirty ? Preset::suffix_modified() : "")).c_str()), *bmp);
+            int item_id = Append(get_preset_name(preset), *bmp);
             if (!is_enabled)
                 set_label_marker(item_id, LABEL_ITEM_DISABLED);
             validate_selection(i == idx_selected);
@@ -999,9 +1025,9 @@ void TabPresetComboBox::update()
         else
         {
             std::pair<wxBitmap*, bool> pair(bmp, is_enabled);
-            nonsys_presets.emplace(wxString::FromUTF8((preset.name + (preset.is_dirty ? Preset::suffix_modified() : "")).c_str()), std::pair<wxBitmap*, bool>(bmp, is_enabled));
+            nonsys_presets.emplace(get_preset_name(preset), std::pair<wxBitmap*, bool>(bmp, is_enabled));
             if (i == idx_selected)
-                selected = wxString::FromUTF8((preset.name + (preset.is_dirty ? Preset::suffix_modified() : "")).c_str());
+                selected = get_preset_name(preset);
         }
         if (i + 1 == m_collection->num_default_presets())
             set_label_marker(Append(separator(L("System presets")), wxNullBitmap));
@@ -1035,7 +1061,7 @@ void TabPresetComboBox::update()
                     wxBitmap* bmp = get_bmp(main_icon_name, main_icon_name, "", true, true, false);
                     assert(bmp);
 
-                    set_label_marker(Append(wxString::FromUTF8((it->get_full_name(preset_name) + (preset->is_dirty ? Preset::suffix_modified() : "")).c_str()), *bmp), LABEL_ITEM_PHYSICAL_PRINTER);
+                    set_label_marker(Append(from_u8(it->get_full_name(preset_name) + suffix(preset)), *bmp), LABEL_ITEM_PHYSICAL_PRINTER);
                     validate_selection(ph_printers.is_selected(it, preset_name));
                 }
             }
@@ -1082,15 +1108,15 @@ void TabPresetComboBox::update_dirty()
             preset_name = PhysicalPrinter::get_preset_name(preset_name);
         }
             
-        const Preset* preset = m_collection->find_preset(preset_name, false);
+        Preset* preset = m_collection->find_preset(preset_name, false);
         if (preset) {
-            std::string new_label = preset->is_dirty ? preset->name + Preset::suffix_modified() : preset->name;
+            std::string new_label = preset->name + suffix(preset);
 
             if (marker == LABEL_ITEM_PHYSICAL_PRINTER)
                 new_label = ph_printer_name + PhysicalPrinter::separator() + new_label;
 
             if (old_label != new_label)
-                SetString(ui_id, wxString::FromUTF8(new_label.c_str()));
+                SetString(ui_id, from_u8(new_label));
         }
     }
 #ifdef __APPLE__

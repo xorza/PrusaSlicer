@@ -63,6 +63,7 @@ public:
     void add_physical_printer();
     bool del_physical_printer(const wxString& note_string = wxEmptyString);
 
+    virtual wxString get_preset_name(const Preset& preset);
     virtual void update();
     virtual void msw_rescale();
 
@@ -158,6 +159,7 @@ public:
     void show_add_menu();
     void show_edit_menu();
 
+    wxString get_preset_name(const Preset& preset) override;
     void update() override;
     void msw_rescale() override;
 
@@ -182,6 +184,7 @@ public:
         show_incompatible = show_incompatible_presets;
     }
 
+    wxString get_preset_name(const Preset& preset) override;
     void update() override;
     void update_dirty();
     void msw_rescale() override;
