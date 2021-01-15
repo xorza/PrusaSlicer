@@ -16,7 +16,7 @@ namespace Slic3r {
 namespace GUI{
 
 // ----------------------------------------------------------------------------
-//                  ModelNode: a node inside UnsavedChangesModel
+//                  ModelNode: a node inside DiffModel
 // ----------------------------------------------------------------------------
 
 class ModelNode;
@@ -71,7 +71,7 @@ public:
     // Thus implementing:
     //   bool IsContainer() const
     //    { return m_children.size()>0; }
-    // doesn't work with wxGTK when UnsavedChangesModel::AddToClassical is called
+    // doesn't work with wxGTK when DiffModel::AddToClassical is called
     // AND the classical node was removed (a new node temporary without children
     // would be added to the control)
     bool                m_container {true};
@@ -108,10 +108,10 @@ public:
 
 
 // ----------------------------------------------------------------------------
-//                  UnsavedChangesModel
+//                  DiffModel
 // ----------------------------------------------------------------------------
 
-class UnsavedChangesModel : public wxDataViewModel
+class DiffModel : public wxDataViewModel
 {
     wxWindow*               m_parent_win { nullptr };
     ModelNodePtrArray       m_preset_nodes;
@@ -144,8 +144,8 @@ public:
         colMax
     };
 
-    UnsavedChangesModel(wxWindow* parent);
-    ~UnsavedChangesModel() {}
+    DiffModel(wxWindow* parent);
+    ~DiffModel() {}
 
     void            SetAssociatedControl(wxDataViewCtrl* ctrl) { m_ctrl = ctrl; }
 
@@ -177,14 +177,59 @@ public:
 };
 
 
+// ----------------------------------------------------------------------------
+//                  DiffViewCtrl
+// ----------------------------------------------------------------------------
+
+class DiffViewCtrl : public wxDataViewCtrl
+{
+    bool                    m_has_long_strings{ false };
+    bool                    m_empty_selection { false };
+    int                     m_em_unit;
+
+    struct ItemData
+    {
+        std::string     opt_key;
+        wxString        opt_name;
+        wxString        old_val;
+        wxString        new_val;
+        Preset::Type    type;
+        bool            is_long{ false };
+    };
+
+    // tree items related to the options
+    std::map<wxDataViewItem, ItemData> m_items_map;
+    std::map<unsigned int, int>        m_columns_width;
+
+public:
+    DiffViewCtrl(wxWindow* parent, wxSize size);
+    ~DiffViewCtrl() {}
+
+    DiffModel* model{ nullptr };
+
+    void    AppendBmpTextColumn(const wxString& label, unsigned model_column, int width, bool set_expander = false);
+    void    AppendToggleColumn_(const wxString& label, unsigned model_column, int width);
+    void    Rescale(int em = 0);
+    void    Append(const std::string& opt_key, Preset::Type type, wxString category_name, wxString group_name, wxString option_name,
+                   wxString old_value, wxString new_value, const std::string category_icon_name);
+
+    wxString    get_short_string(wxString full_string);
+    bool        has_selection() { return !m_empty_selection; }
+    void        context_menu(wxDataViewEvent& event);
+    void        item_value_changed(wxDataViewEvent& event);
+    void        set_em_unit(int em) { m_em_unit = em; }
+
+    std::vector<std::string> unselected_options(Preset::Type type);
+    std::vector<std::string> selected_options();
+};
+
+
 //------------------------------------------
 //          UnsavedChangesDialog
 //------------------------------------------
 class UnsavedChangesDialog : public DPIDialog
 {
-    wxDataViewCtrl*         m_tree          { nullptr };
-    UnsavedChangesModel*    m_tree_model    { nullptr };
-
+    DiffViewCtrl*           m_tree          { nullptr };
     ScalableButton*         m_save_btn      { nullptr };
     ScalableButton*         m_transfer_btn  { nullptr };
     ScalableButton*         m_discard_btn   { nullptr };
@@ -192,7 +237,6 @@ class UnsavedChangesDialog : public DPIDialog
     wxStaticText*           m_info_line     { nullptr };
     wxCheckBox*             m_remember_choice   { nullptr };
 
-    bool                    m_empty_selection   { false };
     bool                    m_has_long_strings  { false };
     int                     m_save_btn_id       { wxID_ANY };
     int                     m_move_btn_id       { wxID_ANY };
@@ -213,19 +257,6 @@ class UnsavedChangesDialog : public DPIDialog
 
     // selected action after Dialog closing
     Action m_exit_action {Action::Undef};
-
-    struct ItemData
-    {
-        std::string     opt_key;
-        wxString        opt_name;
-        wxString        old_val;
-        wxString        new_val;
-        Preset::Type    type;
-        bool            is_long {false};
-    };
-    // tree items related to the options
-    std::map<wxDataViewItem, ItemData> m_items_map;
-
     // preset names which are modified in SavePresetDialog and related types
     std::vector<std::pair<std::string, Preset::Type>>  names_and_types;
 
@@ -234,13 +265,9 @@ public:
     UnsavedChangesDialog(Preset::Type type, PresetCollection* dependent_presets, const std::string& new_selected_preset);
     ~UnsavedChangesDialog() {}
 
-    wxString get_short_string(wxString full_string);
-
     void build(Preset::Type type, PresetCollection* dependent_presets, const std::string& new_selected_preset, const wxString& header = "");
     void update(Preset::Type type, PresetCollection* dependent_presets, const std::string& new_selected_preset, const wxString& header);
     void update_tree(Preset::Type type, PresetCollection *presets);
-    void item_value_changed(wxDataViewEvent &event);
-    void context_menu(wxDataViewEvent &event);
     void show_info_line(Action action, std::string preset_name = "");
     void update_config(Action action);
     void close(Action action);
@@ -255,8 +282,8 @@ public:
     // short version of the previous function, for the case, when just one preset is modified
     std::string get_preset_name() { return names_and_types[0].first; }
 
-    std::vector<std::string> get_unselected_options(Preset::Type type);
-    std::vector<std::string> get_selected_options();
+    std::vector<std::string> get_unselected_options(Preset::Type type)  { return m_tree->unselected_options(type); }
+    std::vector<std::string> get_selected_options()                     { return m_tree->selected_options(); }
 
 protected:
     void on_dpi_changed(const wxRect& suggested_rect) override;
@@ -280,15 +307,11 @@ public:
 //------------------------------------------
 class DiffPresetDialog : public DPIDialog
 {
-    wxDataViewCtrl*         m_tree{ nullptr };
-    UnsavedChangesModel*    m_tree_model{ nullptr };
-
-    PresetComboBox*         m_presets_left  { nullptr };
-    PresetComboBox*         m_presets_right { nullptr };
-
-    wxStaticText*           m_top_info_line   { nullptr };
-    wxStaticText*           m_bottom_info_line{ nullptr };
-
+    DiffViewCtrl*           m_tree              { nullptr };
+    PresetComboBox*         m_presets_left      { nullptr };
+    PresetComboBox*         m_presets_right     { nullptr };
+    wxStaticText*           m_top_info_line     { nullptr };
+    wxStaticText*           m_bottom_info_line  { nullptr };
     Preset::Type            m_type;
 
     void                    update_tree();

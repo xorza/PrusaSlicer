@@ -37,7 +37,7 @@ namespace Slic3r {
 namespace GUI {
 
 // ----------------------------------------------------------------------------
-//                  ModelNode: a node inside UnsavedChangesModel
+//                  ModelNode: a node inside DiffModel
 // ----------------------------------------------------------------------------
 
 static const std::map<Preset::Type, std::string> type_icon_names = {
@@ -216,15 +216,15 @@ void ModelNode::UpdateIcons()
 
 
 // ----------------------------------------------------------------------------
-//                          UnsavedChangesModel
+//                          DiffModel
 // ----------------------------------------------------------------------------
 
-UnsavedChangesModel::UnsavedChangesModel(wxWindow* parent) :
+DiffModel::DiffModel(wxWindow* parent) :
     m_parent_win(parent)
 {
 }
 
-wxDataViewItem UnsavedChangesModel::AddPreset(Preset::Type type, wxString preset_name, PrinterTechnology pt)
+wxDataViewItem DiffModel::AddPreset(Preset::Type type, wxString preset_name, PrinterTechnology pt)
 {
     // "color" strings
     color_string(preset_name, def_text_color());
@@ -240,7 +240,7 @@ wxDataViewItem UnsavedChangesModel::AddPreset(Preset::Type type, wxString preset
     return child;
 }
 
-ModelNode* UnsavedChangesModel::AddOption(ModelNode* group_node, wxString option_name, wxString old_value, wxString new_value)
+ModelNode* DiffModel::AddOption(ModelNode* group_node, wxString option_name, wxString old_value, wxString new_value)
 {
     group_node->Append(std::make_unique<ModelNode>(group_node, option_name, old_value, new_value));
     ModelNode* option = group_node->GetChildren().back().get();
@@ -251,7 +251,7 @@ ModelNode* UnsavedChangesModel::AddOption(ModelNode* group_node, wxString option
     return option;
 }
 
-ModelNode* UnsavedChangesModel::AddOptionWithGroup(ModelNode* category_node, wxString group_name, wxString option_name, wxString old_value, wxString new_value)
+ModelNode* DiffModel::AddOptionWithGroup(ModelNode* category_node, wxString group_name, wxString option_name, wxString old_value, wxString new_value)
 {
     category_node->Append(std::make_unique<ModelNode>(category_node, group_name));
     ModelNode* group_node = category_node->GetChildren().back().get();
@@ -260,7 +260,7 @@ ModelNode* UnsavedChangesModel::AddOptionWithGroup(ModelNode* category_node, wxS
     return AddOption(group_node, option_name, old_value, new_value);
 }
 
-ModelNode* UnsavedChangesModel::AddOptionWithGroupAndCategory(ModelNode* preset_node, wxString category_name, wxString group_name, 
+ModelNode* DiffModel::AddOptionWithGroupAndCategory(ModelNode* preset_node, wxString category_name, wxString group_name, 
                                             wxString option_name, wxString old_value, wxString new_value, const std::string category_icon_name)
 {
     preset_node->Append(std::make_unique<ModelNode>(preset_node, category_name, category_icon_name));
@@ -270,7 +270,7 @@ ModelNode* UnsavedChangesModel::AddOptionWithGroupAndCategory(ModelNode* preset_
     return AddOptionWithGroup(category_node, group_name, option_name, old_value, new_value);
 }
 
-wxDataViewItem UnsavedChangesModel::AddOption(Preset::Type type, wxString category_name, wxString group_name, wxString option_name,
+wxDataViewItem DiffModel::AddOption(Preset::Type type, wxString category_name, wxString group_name, wxString option_name,
                                               wxString old_value, wxString new_value, const std::string category_icon_name)
 {
     // "color" strings
@@ -331,7 +331,7 @@ static void update_parents(ModelNode* node)
     }
 }
 
-void UnsavedChangesModel::UpdateItemEnabling(wxDataViewItem item)
+void DiffModel::UpdateItemEnabling(wxDataViewItem item)
 {
     assert(item.IsOk());
     ModelNode* node = static_cast<ModelNode*>(item.GetID());
@@ -341,14 +341,14 @@ void UnsavedChangesModel::UpdateItemEnabling(wxDataViewItem item)
     update_parents(node);    
 }
 
-bool UnsavedChangesModel::IsEnabledItem(const wxDataViewItem& item)
+bool DiffModel::IsEnabledItem(const wxDataViewItem& item)
 {
     assert(item.IsOk());
     ModelNode* node = static_cast<ModelNode*>(item.GetID());
     return node->IsToggled();
 }
 
-void UnsavedChangesModel::GetValue(wxVariant& variant, const wxDataViewItem& item, unsigned int col) const
+void DiffModel::GetValue(wxVariant& variant, const wxDataViewItem& item, unsigned int col) const
 {
     assert(item.IsOk());
 
@@ -381,11 +381,11 @@ void UnsavedChangesModel::GetValue(wxVariant& variant, const wxDataViewItem& ite
 #endif //__linux__
 
     default:
-        wxLogError("UnsavedChangesModel::GetValue: wrong column %d", col);
+        wxLogError("DiffModel::GetValue: wrong column %d", col);
     }
 }
 
-bool UnsavedChangesModel::SetValue(const wxVariant& variant, const wxDataViewItem& item, unsigned int col)
+bool DiffModel::SetValue(const wxVariant& variant, const wxDataViewItem& item, unsigned int col)
 {
     assert(item.IsOk());
 
@@ -435,12 +435,12 @@ bool UnsavedChangesModel::SetValue(const wxVariant& variant, const wxDataViewIte
         return true; }
 #endif //__linux__
     default:
-        wxLogError("UnsavedChangesModel::SetValue: wrong column");
+        wxLogError("DiffModel::SetValue: wrong column");
     }
     return false;
 }
 
-bool UnsavedChangesModel::IsEnabled(const wxDataViewItem& item, unsigned int col) const
+bool DiffModel::IsEnabled(const wxDataViewItem& item, unsigned int col) const
 {
     assert(item.IsOk());
     if (col == colToggle)
@@ -450,7 +450,7 @@ bool UnsavedChangesModel::IsEnabled(const wxDataViewItem& item, unsigned int col
     return (static_cast<ModelNode*>(item.GetID()))->IsToggled();
 }
 
-wxDataViewItem UnsavedChangesModel::GetParent(const wxDataViewItem& item) const
+wxDataViewItem DiffModel::GetParent(const wxDataViewItem& item) const
 {
     // the invisible root node has no parent
     if (!item.IsOk())
@@ -464,7 +464,7 @@ wxDataViewItem UnsavedChangesModel::GetParent(const wxDataViewItem& item) const
     return wxDataViewItem((void*)node->GetParent());
 }
 
-bool UnsavedChangesModel::IsContainer(const wxDataViewItem& item) const
+bool DiffModel::IsContainer(const wxDataViewItem& item) const
 {
     // the invisble root node can have children
     if (!item.IsOk())
@@ -474,7 +474,7 @@ bool UnsavedChangesModel::IsContainer(const wxDataViewItem& item) const
     return node->IsContainer();
 }
 
-unsigned int UnsavedChangesModel::GetChildren(const wxDataViewItem& parent, wxDataViewItemArray& array) const
+unsigned int DiffModel::GetChildren(const wxDataViewItem& parent, wxDataViewItemArray& array) const
 {
     ModelNode* parent_node = (ModelNode*)parent.GetID();
 
@@ -486,7 +486,7 @@ unsigned int UnsavedChangesModel::GetChildren(const wxDataViewItem& parent, wxDa
 }
 
 
-wxString UnsavedChangesModel::GetColumnType(unsigned int col) const
+wxString DiffModel::GetColumnType(unsigned int col) const
 {
     switch (col)
     {
@@ -510,7 +510,7 @@ static void rescale_children(ModelNode* parent)
     }
 }
 
-void UnsavedChangesModel::Rescale()
+void DiffModel::Rescale()
 {
     for (std::unique_ptr<ModelNode> &node : m_preset_nodes) {
         node->UpdateIcons();
@@ -518,7 +518,7 @@ void UnsavedChangesModel::Rescale()
     }
 }
 
-wxDataViewItem UnsavedChangesModel::Delete(const wxDataViewItem& item)
+wxDataViewItem DiffModel::Delete(const wxDataViewItem& item)
 {
     auto ret_item = wxDataViewItem(nullptr);
     ModelNode* node = static_cast<ModelNode*>(item.GetID());
@@ -559,10 +559,167 @@ wxDataViewItem UnsavedChangesModel::Delete(const wxDataViewItem& item)
     return ret_item;
 }
 
-void UnsavedChangesModel::Clear()
+void DiffModel::Clear()
 {
     while (!m_preset_nodes.empty())
         Delete(wxDataViewItem(m_preset_nodes.back().get()));
+}
+
+
+static std::string get_pure_opt_key(std::string opt_key)
+{
+    int pos = opt_key.find("#");
+    if (pos > 0)
+        boost::erase_tail(opt_key, opt_key.size() - pos);
+    return opt_key;
+}    
+
+// ----------------------------------------------------------------------------
+//                  DiffViewCtrl
+// ----------------------------------------------------------------------------
+
+DiffViewCtrl::DiffViewCtrl(wxWindow* parent, wxSize size)
+    : wxDataViewCtrl(parent, wxID_ANY, wxDefaultPosition, size, wxBORDER_SIMPLE | wxDV_VARIABLE_LINE_HEIGHT | wxDV_ROW_LINES),
+    m_em_unit(em_unit(parent))
+{
+    model = new DiffModel(parent);
+    this->AssociateModel(model);
+    model->SetAssociatedControl(this);
+
+    this->Bind(wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &DiffViewCtrl::context_menu, this);
+    this->Bind(wxEVT_DATAVIEW_ITEM_VALUE_CHANGED, &DiffViewCtrl::item_value_changed, this);
+}
+
+void DiffViewCtrl::AppendBmpTextColumn(const wxString& label, unsigned model_column, int width, bool set_expander/* = false*/)
+{
+    m_columns_width.emplace(this->GetColumnCount(), width);
+#ifdef __linux__
+    wxDataViewIconTextRenderer* rd = new wxDataViewIconTextRenderer();
+#ifdef SUPPORTS_MARKUP
+    rd->EnableMarkup(true);
+#endif
+    wxDataViewColumn* column = new wxDataViewColumn(label, rd, model_column, width, wxALIGN_TOP, wxDATAVIEW_COL_RESIZABLE | wxDATAVIEW_CELL_INERT);
+#else
+    wxDataViewColumn* column = new wxDataViewColumn(label, new BitmapTextRenderer(true, wxDATAVIEW_CELL_INERT), model_column, width * m_em_unit, wxALIGN_TOP, wxDATAVIEW_COL_RESIZABLE);
+#endif //__linux__
+    this->AppendColumn(column);
+    if (set_expander)
+        this->SetExpanderColumn(column);
+
+}
+
+void DiffViewCtrl::AppendToggleColumn_(const wxString& label, unsigned model_column, int width)
+{
+    m_columns_width.emplace(this->GetColumnCount(), width);
+    AppendToggleColumn(label, model_column, wxDATAVIEW_CELL_ACTIVATABLE, width * m_em_unit);
+}
+
+void DiffViewCtrl::Rescale(int em /*= 0*/)
+{
+    if (em > 0) {
+        for (auto item : m_columns_width)
+            GetColumn(item.first)->SetWidth(item.second * em);
+        m_em_unit = em;
+    }
+
+    model->Rescale();
+    Refresh();
+}
+
+
+void DiffViewCtrl::Append(  const std::string& opt_key, Preset::Type type, 
+                            wxString category_name, wxString group_name, wxString option_name,
+                            wxString old_value, wxString new_value, const std::string category_icon_name)
+{
+    ItemData item_data = { opt_key, option_name, old_value, new_value, type };
+
+    wxString old_val = get_short_string(item_data.old_val);
+    wxString new_val = get_short_string(item_data.new_val);
+    if (old_val != item_data.old_val || new_val != item_data.new_val)
+        item_data.is_long = true;
+
+    m_items_map.emplace(model->AddOption(type, category_name, group_name, option_name, old_val, new_val, category_icon_name), item_data);
+
+}
+
+wxString DiffViewCtrl::get_short_string(wxString full_string)
+{
+    int max_len = 30;
+    if (full_string.IsEmpty() || full_string.StartsWith("#") ||
+        (full_string.Find("\n") == wxNOT_FOUND && full_string.Length() < max_len))
+        return full_string;
+
+    m_has_long_strings = true;
+
+    int n_pos = full_string.Find("\n");
+    if (n_pos != wxNOT_FOUND && n_pos < max_len)
+        max_len = n_pos;
+
+    full_string.Truncate(max_len);
+    return full_string + dots;
+}
+
+void DiffViewCtrl::context_menu(wxDataViewEvent& event)
+{
+    if (!m_has_long_strings)
+        return;
+
+    wxDataViewItem item = event.GetItem();
+    if (!item) {
+        wxPoint mouse_pos = wxGetMousePosition() - this->GetScreenPosition();
+        wxDataViewColumn* col = nullptr;
+        this->HitTest(mouse_pos, item, col);
+
+        if (!item)
+            item = this->GetSelection();
+
+        if (!item)
+            return;
+    }
+
+    auto it = m_items_map.find(item);
+    if (it == m_items_map.end() || !it->second.is_long)
+        return;
+    FullCompareDialog(it->second.opt_name, it->second.old_val, it->second.new_val).ShowModal();
+}
+
+void DiffViewCtrl::item_value_changed(wxDataViewEvent& event)
+{
+    if (event.GetColumn() != DiffModel::colToggle)
+        return;
+
+    wxDataViewItem item = event.GetItem();
+
+    model->UpdateItemEnabling(item);
+    Refresh();
+
+    // update an enabling of the "save/move" buttons
+    m_empty_selection = selected_options().empty();
+}
+
+std::vector<std::string> DiffViewCtrl::unselected_options(Preset::Type type)
+{
+    std::vector<std::string> ret;
+
+    for (auto item : m_items_map) {
+        if (item.second.opt_key == "extruders_count")
+            continue;
+        if (item.second.type == type && !model->IsEnabledItem(item.first))
+            ret.emplace_back(get_pure_opt_key(item.second.opt_key));
+    }
+
+    return ret;
+}
+
+std::vector<std::string> DiffViewCtrl::selected_options()
+{
+    std::vector<std::string> ret;
+
+    for (auto item : m_items_map)
+        if (model->IsEnabledItem(item.first))
+            ret.emplace_back(get_pure_opt_key(item.second.opt_key));
+
+    return ret;
 }
 
 
@@ -630,35 +787,11 @@ void UnsavedChangesDialog::build(Preset::Type type, PresetCollection* dependent_
     m_action_line = new wxStaticText(this, wxID_ANY, "");
     m_action_line->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT).Bold());
 
-    m_tree       = new wxDataViewCtrl(this, wxID_ANY, wxDefaultPosition, wxSize(em * 60, em * 30), wxBORDER_SIMPLE | wxDV_VARIABLE_LINE_HEIGHT | wxDV_ROW_LINES);
-    m_tree_model = new UnsavedChangesModel(this);
-    m_tree->AssociateModel(m_tree_model);
-    m_tree_model->SetAssociatedControl(m_tree);
-
-    m_tree->AppendToggleColumn(L"\u2714", UnsavedChangesModel::colToggle, wxDATAVIEW_CELL_ACTIVATABLE, (wxLinux ? 8 : 6) * em);
-
-    auto append_bmp_text_column = [this](const wxString& label, unsigned model_column, int width, bool set_expander = false) 
-    {
-#ifdef __linux__
-        wxDataViewIconTextRenderer* rd = new wxDataViewIconTextRenderer();
-#ifdef SUPPORTS_MARKUP
-        rd->EnableMarkup(true);
-#endif
-        wxDataViewColumn* column = new wxDataViewColumn(label, rd, model_column, width, wxALIGN_TOP, wxDATAVIEW_COL_RESIZABLE | wxDATAVIEW_CELL_INERT);
-#else
-        wxDataViewColumn* column = new wxDataViewColumn(label, new BitmapTextRenderer(true, wxDATAVIEW_CELL_INERT), model_column, width, wxALIGN_TOP, wxDATAVIEW_COL_RESIZABLE);
-#endif //__linux__
-        m_tree->AppendColumn(column);
-        if (set_expander)
-            m_tree->SetExpanderColumn(column);
-    };
-
-    append_bmp_text_column(""             , UnsavedChangesModel::colIconText, 28 * em);
-    append_bmp_text_column(_L("Old Value"), UnsavedChangesModel::colOldValue, 12 * em);
-    append_bmp_text_column(_L("New Value"), UnsavedChangesModel::colNewValue, 12 * em);
-
-    m_tree->Bind(wxEVT_DATAVIEW_ITEM_VALUE_CHANGED, &UnsavedChangesDialog::item_value_changed, this);
-    m_tree->Bind(wxEVT_DATAVIEW_ITEM_CONTEXT_MENU,  &UnsavedChangesDialog::context_menu, this);
+    m_tree = new DiffViewCtrl(this, wxSize(em * 60, em * 30));
+    m_tree->AppendToggleColumn_(L"\u2714"      , DiffModel::colToggle, wxLinux ? 8 : 6);
+    m_tree->AppendBmpTextColumn(""             , DiffModel::colIconText, 28);
+    m_tree->AppendBmpTextColumn(_L("Old Value"), DiffModel::colOldValue, 12);
+    m_tree->AppendBmpTextColumn(_L("New Value"), DiffModel::colNewValue, 12);
 
     // Add Buttons 
     wxFont      btn_font = this->GetFont().Scaled(1.4f);
@@ -678,7 +811,7 @@ void UnsavedChangesDialog::build(Preset::Type type, PresetCollection* dependent_
             close(close_act);
         });
         if (process_enable)
-            (*btn)->Bind(wxEVT_UPDATE_UI, [this](wxUpdateUIEvent& evt) { evt.Enable(!m_empty_selection); });
+            (*btn)->Bind(wxEVT_UPDATE_UI, [this](wxUpdateUIEvent& evt) { evt.Enable(m_tree->has_selection()); });
         (*btn)->Bind(wxEVT_LEAVE_WINDOW, [this](wxMouseEvent& e) { show_info_line(Action::Undef); e.Skip(); });
     };
 
@@ -733,45 +866,6 @@ void UnsavedChangesDialog::build(Preset::Type type, PresetCollection* dependent_
     topSizer->SetSizeHints(this);
 
     show_info_line(Action::Undef);
-}
-
-void UnsavedChangesDialog::item_value_changed(wxDataViewEvent& event)
-{
-    if (event.GetColumn() != UnsavedChangesModel::colToggle)
-        return;
-
-    wxDataViewItem item = event.GetItem();
-
-    m_tree_model->UpdateItemEnabling(item);
-    m_tree->Refresh();
-
-    // update an enabling of the "save/move" buttons
-    m_empty_selection = get_selected_options().empty();
-}
-
-void UnsavedChangesDialog::context_menu(wxDataViewEvent& event)
-{
-    if (!m_has_long_strings)
-        return;
-
-    wxDataViewItem item = event.GetItem();
-    if (!item)
-    {
-        wxPoint mouse_pos = wxGetMousePosition() - m_tree->GetScreenPosition();
-        wxDataViewColumn* col = nullptr;
-        m_tree->HitTest(mouse_pos, item, col);
-
-        if (!item)
-            item = m_tree->GetSelection();
-
-        if (!item)
-            return;
-    }
-
-    auto it = m_items_map.find(item);
-    if (it == m_items_map.end() || !it->second.is_long)
-        return;
-    FullCompareDialog(it->second.opt_name, it->second.old_val, it->second.new_val).ShowModal();
 }
 
 void UnsavedChangesDialog::show_info_line(Action action, std::string preset_name)
@@ -906,14 +1000,6 @@ static int get_id_from_opt_key(std::string opt_key)
     return 0;
 }
 
-static std::string get_pure_opt_key(std::string opt_key)
-{
-    int pos = opt_key.find("#");
-    if (pos > 0)
-        boost::erase_tail(opt_key, opt_key.size() - pos);
-    return opt_key;
-}
-
 static wxString get_full_label(std::string opt_key, const DynamicPrintConfig& config)
 {
     opt_key = get_pure_opt_key(opt_key);
@@ -1033,23 +1119,6 @@ static wxString get_string_value(std::string opt_key, const DynamicPrintConfig& 
     return out;
 }
 
-wxString UnsavedChangesDialog::get_short_string(wxString full_string)
-{
-    int max_len = 30;
-    if (full_string.IsEmpty() || full_string.StartsWith("#") || 
-        (full_string.Find("\n") == wxNOT_FOUND && full_string.Length() < max_len))
-        return full_string;
-
-    m_has_long_strings = true;
-
-    int n_pos = full_string.Find("\n");
-    if (n_pos != wxNOT_FOUND && n_pos < max_len)
-        max_len = n_pos;
-
-    full_string.Truncate(max_len);
-    return full_string + dots;
-}
-
 void UnsavedChangesDialog::update(Preset::Type type, PresetCollection* dependent_presets, const std::string& new_selected_preset, const wxString& header)
 {
     PresetCollection* presets = dependent_presets;
@@ -1111,7 +1180,7 @@ void UnsavedChangesDialog::update_tree(Preset::Type type, PresetCollection* pres
 
         const std::map<wxString, std::string>& category_icon_map = wxGetApp().get_tab(type)->get_category_icon_map();
 
-        m_tree_model->AddPreset(type, from_u8(presets->get_edited_preset().name), old_pt);
+        m_tree->model->AddPreset(type, from_u8(presets->get_edited_preset().name), old_pt);
 
         // Collect dirty options.
         const bool deep_compare = (type == Preset::TYPE_PRINTER || type == Preset::TYPE_SLA_MATERIAL);
@@ -1124,9 +1193,7 @@ void UnsavedChangesDialog::update_tree(Preset::Type type, PresetCollection* pres
             wxString old_val = from_u8((boost::format("%1%") % old_config.opt<ConfigOptionStrings>("extruder_colour")->values.size()).str());
             wxString new_val = from_u8((boost::format("%1%") % new_config.opt<ConfigOptionStrings>("extruder_colour")->values.size()).str());
 
-            ItemData item_data = { "extruders_count", local_label, old_val, new_val, type };
-            m_items_map.emplace(m_tree_model->AddOption(type, _L("General"), _L("Capabilities"), local_label, old_val, new_val, category_icon_map.at("General")), item_data);
-
+            m_tree->Append("extruders_count", type, _L("General"), _L("Capabilities"), local_label, old_val, new_val, category_icon_map.at("General"));
         }
 
         for (const std::string& opt_key : dirty_options) {
@@ -1138,41 +1205,10 @@ void UnsavedChangesDialog::update_tree(Preset::Type type, PresetCollection* pres
                 continue;
             }
 
-            ItemData item_data = { opt_key, option.label_local, get_string_value(opt_key, old_config), get_string_value(opt_key, new_config), type };
-
-            wxString old_val = get_short_string(item_data.old_val);
-            wxString new_val = get_short_string(item_data.new_val);
-            if (old_val != item_data.old_val || new_val != item_data.new_val)
-                item_data.is_long = true;
-
-            m_items_map.emplace(m_tree_model->AddOption(type, option.category_local, option.group_local, option.label_local, old_val, new_val, category_icon_map.at(option.category)), item_data);
+            m_tree->Append(opt_key, type, option.category_local, option.group_local, option.label_local,
+                get_string_value(opt_key, old_config), get_string_value(opt_key, new_config), category_icon_map.at(option.category));
         }
     }
-}
-
-std::vector<std::string> UnsavedChangesDialog::get_unselected_options(Preset::Type type)
-{
-    std::vector<std::string> ret;
-
-    for (auto item : m_items_map) {
-        if (item.second.opt_key == "extruders_count")
-            continue;
-        if (item.second.type == type && !m_tree_model->IsEnabledItem(item.first))
-            ret.emplace_back(get_pure_opt_key(item.second.opt_key));
-    }
-
-    return ret;
-}
-
-std::vector<std::string> UnsavedChangesDialog::get_selected_options()
-{
-    std::vector<std::string> ret;
-
-    for (auto item : m_items_map) 
-        if (m_tree_model->IsEnabledItem(item.first))
-            ret.emplace_back(get_pure_opt_key(item.second.opt_key));
-
-    return ret;
 }
 
 void UnsavedChangesDialog::on_dpi_changed(const wxRect& suggested_rect)
@@ -1183,16 +1219,10 @@ void UnsavedChangesDialog::on_dpi_changed(const wxRect& suggested_rect)
     for (auto btn : { m_save_btn, m_transfer_btn, m_discard_btn } )
         if (btn) btn->msw_rescale();
 
-    const wxSize& size = wxSize(80 * em, 30 * em);
+    const wxSize& size = wxSize(70 * em, 30 * em);
     SetMinSize(size);
 
-    m_tree->GetColumn(UnsavedChangesModel::colToggle  )->SetWidth(6 * em);
-    m_tree->GetColumn(UnsavedChangesModel::colIconText)->SetWidth(30 * em);
-    m_tree->GetColumn(UnsavedChangesModel::colOldValue)->SetWidth(20 * em);
-    m_tree->GetColumn(UnsavedChangesModel::colNewValue)->SetWidth(20 * em);
-
-    m_tree_model->Rescale();
-    m_tree->Refresh();
+    m_tree->Rescale(em);
 
     Fit();
     Refresh();
@@ -1203,8 +1233,7 @@ void UnsavedChangesDialog::on_sys_color_changed()
     for (auto btn : { m_save_btn, m_transfer_btn, m_discard_btn } )
         btn->msw_rescale();
     // msw_rescale updates just icons, so use it
-    m_tree_model->Rescale();
-    m_tree->Refresh();
+    m_tree->Rescale();
 
     Refresh();
 }
@@ -1310,33 +1339,10 @@ DiffPresetDialog::DiffPresetDialog(Preset::Type type/* = Preset::Type::TYPE_INVA
     add_preset_combobox(&m_presets_left);
     add_preset_combobox(&m_presets_right);
 
-    m_tree = new wxDataViewCtrl(this, wxID_ANY, wxDefaultPosition, wxSize(em * 65, em * 40), wxBORDER_SIMPLE | wxDV_VARIABLE_LINE_HEIGHT | wxDV_ROW_LINES);
-    m_tree_model = new UnsavedChangesModel(this);
-    m_tree->AssociateModel(m_tree_model);
-    m_tree_model->SetAssociatedControl(m_tree);
-
-    auto append_bmp_text_column = [this](const wxString& label, unsigned model_column, int width, bool set_expander = false)
-    {
-#ifdef __linux__
-        wxDataViewIconTextRenderer* rd = new wxDataViewIconTextRenderer();
-#ifdef SUPPORTS_MARKUP
-        rd->EnableMarkup(true);
-#endif
-        wxDataViewColumn* column = new wxDataViewColumn(label, rd, model_column, width, wxALIGN_TOP, wxDATAVIEW_COL_RESIZABLE | wxDATAVIEW_CELL_INERT);
-#else
-        wxDataViewColumn* column = new wxDataViewColumn(label, new BitmapTextRenderer(true, wxDATAVIEW_CELL_INERT), model_column, width, wxALIGN_TOP, wxDATAVIEW_COL_RESIZABLE);
-#endif //__linux__
-        m_tree->AppendColumn(column);
-        if (set_expander)
-            m_tree->SetExpanderColumn(column);
-    };
-
-    append_bmp_text_column("", UnsavedChangesModel::colIconText, 35 * em);
-    append_bmp_text_column(_L("Left Preset Value"), UnsavedChangesModel::colOldValue, 15 * em);
-    append_bmp_text_column(_L("Right Preset Value"), UnsavedChangesModel::colNewValue, 15 * em);
-
-//    m_tree->Bind(wxEVT_DATAVIEW_ITEM_VALUE_CHANGED, &UnsavedChangesDialog::item_value_changed, this);
-//    m_tree->Bind(wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &UnsavedChangesDialog::context_menu, this);
+    m_tree = new DiffViewCtrl(this, wxSize(em * 65, em * 40));
+    m_tree->AppendBmpTextColumn("",                      DiffModel::colIconText, 35);
+    m_tree->AppendBmpTextColumn(_L("Left Preset Value"), DiffModel::colOldValue, 15);
+    m_tree->AppendBmpTextColumn(_L("Right Preset Value"),DiffModel::colNewValue, 15);
 
     wxBoxSizer* topSizer = new wxBoxSizer(wxVERTICAL);
 
@@ -1357,7 +1363,7 @@ void DiffPresetDialog::update_tree()
     Search::OptionsSearcher& searcher = wxGetApp().sidebar().get_searcher();
     searcher.sort_options_by_opt_key();
 
-    m_tree_model->Clear();
+    m_tree->model->Clear();
     wxString bottom_info = "";
 
     // list of the presets with unsaved changes
@@ -1403,7 +1409,7 @@ void DiffPresetDialog::update_tree()
             continue;
         }
 
-        m_tree_model->AddPreset(type, "\"" + from_u8(left_preset->name) + "\" vs \"" + from_u8(right_preset->name) + "\"", left_pt);
+        m_tree->model->AddPreset(type, "\"" + from_u8(left_preset->name) + "\" vs \"" + from_u8(right_preset->name) + "\"", left_pt);
 
         const std::map<wxString, std::string>& category_icon_map = wxGetApp().get_tab(type)->get_category_icon_map();
 
@@ -1414,7 +1420,7 @@ void DiffPresetDialog::update_tree()
             wxString left_val = from_u8((boost::format("%1%") % left_config.opt<ConfigOptionStrings>("extruder_colour")->values.size()).str());
             wxString right_val = from_u8((boost::format("%1%") % right_congig.opt<ConfigOptionStrings>("extruder_colour")->values.size()).str());
 
-            m_tree_model->AddOption(type, _L("General"), _L("Capabilities"), local_label, left_val, right_val, category_icon_map.at("General"));
+            m_tree->Append("extruders_count", type, _L("General"), _L("Capabilities"), local_label, left_val, right_val, category_icon_map.at("General"));
         }
 
         for (const std::string& opt_key : dirty_options) {
@@ -1424,13 +1430,14 @@ void DiffPresetDialog::update_tree()
             Search::Option option = searcher.get_option(opt_key, get_full_label(opt_key, left_config), type);
             if (option.opt_key != boost::nowide::widen(opt_key)) {
                 // temporary solution, just for testing
-                m_tree_model->AddOption(type, _L("Undef category"), _L("Undef group"), opt_key, left_val, right_val, "question");
+                m_tree->Append(opt_key, type, _L("Undef category"), _L("Undef group"), opt_key, left_val, right_val, "question");
                 // When founded option isn't the correct one.
                 // It can be for dirty_options: "default_print_profile", "printer_model", "printer_settings_id",
                 // because of they don't exist in searcher
                 continue;
             }
-            m_tree_model->AddOption(type, option.category_local, option.group_local, option.label_local, left_val, right_val, category_icon_map.at(option.category));
+            m_tree->Append(opt_key, type, option.category_local, option.group_local, option.label_local,
+                left_val, right_val, category_icon_map.at(option.category));
         }
     }
 
@@ -1458,12 +1465,10 @@ void DiffPresetDialog::on_dpi_changed(const wxRect&)
     const wxSize& size = wxSize(80 * em, 30 * em);
     SetMinSize(size);
 
-    m_tree->GetColumn(UnsavedChangesModel::colIconText)->SetWidth(35 * em);
-    m_tree->GetColumn(UnsavedChangesModel::colOldValue)->SetWidth(15 * em);
-    m_tree->GetColumn(UnsavedChangesModel::colNewValue)->SetWidth(15 * em);
+    m_presets_left->msw_rescale();
+    m_presets_right->msw_rescale();
 
-    m_tree_model->Rescale();
-    m_tree->Refresh();
+    m_tree->Rescale(em);
 
     Fit();
     Refresh();
@@ -1472,13 +1477,9 @@ void DiffPresetDialog::on_dpi_changed(const wxRect&)
 void DiffPresetDialog::on_sys_color_changed()
 {
     // msw_rescale updates just icons, so use it
-    m_tree_model->Rescale();
-    m_tree->Refresh();
-
+    m_tree->Rescale();
     Refresh();
 }
-
-
 
 
 }
