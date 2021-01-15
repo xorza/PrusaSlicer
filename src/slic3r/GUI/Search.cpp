@@ -329,6 +329,31 @@ const Option& OptionsSearcher::get_option(const std::string& opt_key) const
     return options[it - options.begin()];
 }
 
+Option OptionsSearcher::get_option(const std::string& opt_key, const wxString& label, Preset::Type type) const
+{
+    auto it = std::lower_bound(options.begin(), options.end(), Option({ boost::nowide::widen(opt_key) }));
+    if(it->opt_key == boost::nowide::widen(opt_key) ||
+       groups_and_categories.find(opt_key) == groups_and_categories.end())
+        return options[it - options.begin()];
+
+    const GroupAndCategory& gc = groups_and_categories.at(opt_key);
+    if (gc.group.IsEmpty() || gc.category.IsEmpty())
+        return options[it - options.begin()];
+
+    wxString suffix;
+    wxString suffix_local;
+    if (gc.category == "Machine limits") {
+        suffix = opt_key.back() == '1' ? L("Stealth") : L("Normal");
+        suffix_local = " " + _(suffix);
+        suffix = " " + suffix;
+    }
+
+    return Option{boost::nowide::widen(opt_key), type,
+                (label + suffix).ToStdWstring(), (_(label) + suffix_local).ToStdWstring(),
+                gc.group.ToStdWstring(), _(gc.group).ToStdWstring(),
+                gc.category.ToStdWstring(), GUI::Tab::translate_category(gc.category, type).ToStdWstring() };
+}
+
 void OptionsSearcher::add_key(const std::string& opt_key, const wxString& group, const wxString& category)
 {
     groups_and_categories[opt_key] = GroupAndCategory{group, category};

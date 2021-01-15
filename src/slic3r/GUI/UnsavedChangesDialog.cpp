@@ -22,6 +22,7 @@
 //#include "fts_fuzzy_match.h"
 
 #include "BitmapCache.hpp"
+#include "PresetComboBoxes.hpp"
 
 using boost::optional;
 
@@ -223,12 +224,6 @@ UnsavedChangesModel::UnsavedChangesModel(wxWindow* parent) :
 {
 }
 
-UnsavedChangesModel::~UnsavedChangesModel()
-{
-    for (ModelNode* preset_node : m_preset_nodes)
-        delete preset_node;
-}
-
 wxDataViewItem UnsavedChangesModel::AddPreset(Preset::Type type, wxString preset_name, PrinterTechnology pt)
 {
     // "color" strings
@@ -288,7 +283,7 @@ wxDataViewItem UnsavedChangesModel::AddOption(Preset::Type type, wxString catego
     make_string_bold(group_name);
 
     // add items
-    for (ModelNode* preset : m_preset_nodes)
+    for (std::unique_ptr<ModelNode>& preset : m_preset_nodes)
         if (preset->type() == type)
         {
             for (std::unique_ptr<ModelNode> &category : preset->GetChildren())
@@ -301,7 +296,7 @@ wxDataViewItem UnsavedChangesModel::AddOption(Preset::Type type, wxString catego
                     return wxDataViewItem((void*)AddOptionWithGroup(category.get(), group_name, option_name, old_value, new_value));
                 }
 
-            return wxDataViewItem((void*)AddOptionWithGroupAndCategory(preset, category_name, group_name, option_name, old_value, new_value, category_icon_name));
+            return wxDataViewItem((void*)AddOptionWithGroupAndCategory(preset.get(), category_name, group_name, option_name, old_value, new_value, category_icon_name));
         }
 
     return wxDataViewItem(nullptr);    
@@ -463,7 +458,6 @@ wxDataViewItem UnsavedChangesModel::GetParent(const wxDataViewItem& item) const
 
     ModelNode* node = static_cast<ModelNode*>(item.GetID());
 
-    // "MyMusic" also has no parent
     if (node->IsRoot())
         return wxDataViewItem(nullptr);
 
@@ -482,17 +476,13 @@ bool UnsavedChangesModel::IsContainer(const wxDataViewItem& item) const
 
 unsigned int UnsavedChangesModel::GetChildren(const wxDataViewItem& parent, wxDataViewItemArray& array) const
 {
-    ModelNode* node = (ModelNode*)parent.GetID();
-    if (!node) {
-        for (auto preset_node : m_preset_nodes)
-            array.Add(wxDataViewItem((void*)preset_node));
-        return m_preset_nodes.size();
-    }
+    ModelNode* parent_node = (ModelNode*)parent.GetID();
 
-    for (std::unique_ptr<ModelNode> &child : node->GetChildren())
+    const ModelNodePtrArray& children = parent_node ? parent_node->GetChildren() : m_preset_nodes;
+    for (const std::unique_ptr<ModelNode>& child : children)
         array.Add(wxDataViewItem((void*)child.get()));
 
-    return node->GetChildCount();
+    return array.size();
 }
 
 
@@ -522,10 +512,57 @@ static void rescale_children(ModelNode* parent)
 
 void UnsavedChangesModel::Rescale()
 {
-    for (ModelNode* node : m_preset_nodes) {
+    for (std::unique_ptr<ModelNode> &node : m_preset_nodes) {
         node->UpdateIcons();
-        rescale_children(node);
+        rescale_children(node.get());
     }
+}
+
+wxDataViewItem UnsavedChangesModel::Delete(const wxDataViewItem& item)
+{
+    auto ret_item = wxDataViewItem(nullptr);
+    ModelNode* node = static_cast<ModelNode*>(item.GetID());
+    if (!node)      // happens if item.IsOk()==false
+        return ret_item;
+
+    // first remove the node from the parent's array of children;
+    // NOTE: m_preset_nodes is only a vector of _pointers_
+    //       thus removing the node from it doesn't result in freeing it
+    ModelNodePtrArray& children = node->GetChildren();
+    // Delete all children
+    while (!children.empty())
+        Delete(wxDataViewItem(children.back().get()));
+
+    auto node_parent = node->GetParent();
+    wxDataViewItem parent(node_parent);
+
+    ModelNodePtrArray& parents_children = node_parent ? node_parent->GetChildren() : m_preset_nodes;
+    auto it = find_if(parents_children.begin(), parents_children.end(), 
+                      [node](std::unique_ptr<ModelNode>& child) { return child.get() == node; });
+    assert(it != parents_children.end());
+    it = parents_children.erase(it);
+
+    if (it != parents_children.end())
+        ret_item = wxDataViewItem(it->get());
+
+    // set m_container to FALSE if parent has no child
+    if (node_parent) {
+#ifndef __WXGTK__
+        if (node_parent->GetChildCount() == 0)
+            node_parent->m_container = false;
+#endif //__WXGTK__
+        ret_item = parent;
+    }
+
+    // notify control
+    ItemDeleted(parent, item);
+    return ret_item;
+}
+
+void UnsavedChangesModel::Clear()
+{
+    while (!m_preset_nodes.empty())
+        Delete(wxDataViewItem(m_preset_nodes.back().get()));
 }
 
 
@@ -877,6 +914,17 @@ static std::string get_pure_opt_key(std::string opt_key)
     return opt_key;
 }
 
+static wxString get_full_label(std::string opt_key, const DynamicPrintConfig& config)
+{
+    opt_key = get_pure_opt_key(opt_key);
+
+    if (config.option(opt_key)->is_nil())
+        return _L("N/A");
+
+    const ConfigOptionDef* opt = config.def()->get(opt_key);
+    return opt->full_label.empty() ? opt->label : opt->full_label;
+}
+
 static wxString get_string_value(std::string opt_key, const DynamicPrintConfig& config)
 {
     int opt_idx = get_id_from_opt_key(opt_key);
@@ -1211,6 +1259,225 @@ FullCompareDialog::FullCompareDialog(const wxString& option_name, const wxString
     SetSizer(topSizer);
     topSizer->SetSizeHints(this);
 }
+
+
+static const PresetCollection* get_preset_collection(Preset::Type type_) {
+    return  type_ == Preset::Type::TYPE_PRINT        ? &wxGetApp().preset_bundle->prints :
+            type_ == Preset::Type::TYPE_SLA_PRINT    ? &wxGetApp().preset_bundle->sla_prints :
+            type_ == Preset::Type::TYPE_FILAMENT     ? &wxGetApp().preset_bundle->filaments :
+            type_ == Preset::Type::TYPE_SLA_MATERIAL ? &wxGetApp().preset_bundle->sla_materials :
+            type_ == Preset::Type::TYPE_PRINTER      ? &wxGetApp().preset_bundle->printers :
+            nullptr;
+}
+
+//------------------------------------------
+//          DiffPresetDialog
+//------------------------------------------
+DiffPresetDialog::DiffPresetDialog(Preset::Type type/* = Preset::Type::TYPE_INVALID*/)
+    : DPIDialog(static_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY, format_wxstr(_L("Compare %1% Presets"), type), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER),
+    m_type(type)
+{    
+    wxColour bgr_clr = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
+    SetBackgroundColour(bgr_clr);
+
+#if ENABLE_WX_3_1_3_DPI_CHANGED_EVENT && defined(__WXMSW__)
+    // ys_FIXME! temporary workaround for correct font scaling
+    // Because of from wxWidgets 3.1.3 auto rescaling is implemented for the Fonts,
+    // From the very beginning set dialog font to the wxSYS_DEFAULT_GUI_FONT
+    this->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT));
+#endif // ENABLE_WX_3_1_3_DPI_CHANGED_EVENT
+
+    int border = 10;
+    int em = em_unit();
+
+    m_top_info_line = new wxStaticText(this, wxID_ANY, "Select presets to compare");
+    m_top_info_line->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT).Bold());
+
+    m_bottom_info_line = new wxStaticText(this, wxID_ANY, "");
+    m_bottom_info_line->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT).Bold());
+
+    const PresetCollection* collection = get_preset_collection(type);
+    wxBoxSizer* presets_sizer = new wxBoxSizer(wxHORIZONTAL);
+
+    auto add_preset_combobox = [collection, presets_sizer, type, em, this](PresetComboBox** cb) {
+        *cb = new PresetComboBox(this, type, wxSize(em * 35, -1));
+        (*cb)->set_selection_changed_function([this](int selection) { update_tree(); });
+        (*cb)->update(collection->get_selected_preset().name);
+
+        presets_sizer->Add(*cb, 1, wxRIGHT|wxLEFT, 5);
+    };
+
+    add_preset_combobox(&m_presets_left);
+    add_preset_combobox(&m_presets_right);
+
+    m_tree = new wxDataViewCtrl(this, wxID_ANY, wxDefaultPosition, wxSize(em * 65, em * 40), wxBORDER_SIMPLE | wxDV_VARIABLE_LINE_HEIGHT | wxDV_ROW_LINES);
+    m_tree_model = new UnsavedChangesModel(this);
+    m_tree->AssociateModel(m_tree_model);
+    m_tree_model->SetAssociatedControl(m_tree);
+
+    auto append_bmp_text_column = [this](const wxString& label, unsigned model_column, int width, bool set_expander = false)
+    {
+#ifdef __linux__
+        wxDataViewIconTextRenderer* rd = new wxDataViewIconTextRenderer();
+#ifdef SUPPORTS_MARKUP
+        rd->EnableMarkup(true);
+#endif
+        wxDataViewColumn* column = new wxDataViewColumn(label, rd, model_column, width, wxALIGN_TOP, wxDATAVIEW_COL_RESIZABLE | wxDATAVIEW_CELL_INERT);
+#else
+        wxDataViewColumn* column = new wxDataViewColumn(label, new BitmapTextRenderer(true, wxDATAVIEW_CELL_INERT), model_column, width, wxALIGN_TOP, wxDATAVIEW_COL_RESIZABLE);
+#endif //__linux__
+        m_tree->AppendColumn(column);
+        if (set_expander)
+            m_tree->SetExpanderColumn(column);
+    };
+
+    append_bmp_text_column("", UnsavedChangesModel::colIconText, 35 * em);
+    append_bmp_text_column(_L("Left Preset Value"), UnsavedChangesModel::colOldValue, 15 * em);
+    append_bmp_text_column(_L("Right Preset Value"), UnsavedChangesModel::colNewValue, 15 * em);
+
+//    m_tree->Bind(wxEVT_DATAVIEW_ITEM_VALUE_CHANGED, &UnsavedChangesDialog::item_value_changed, this);
+//    m_tree->Bind(wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &UnsavedChangesDialog::context_menu, this);
+
+    wxBoxSizer* topSizer = new wxBoxSizer(wxVERTICAL);
+
+    topSizer->Add(m_top_info_line, 0, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, 2 * border);
+    topSizer->Add(presets_sizer, 0, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, border);
+    topSizer->Add(m_bottom_info_line, 0, wxEXPAND | wxALL, 2 * border);
+    topSizer->Add(m_tree, 1, wxEXPAND | wxALL, border);
+
+    update_tree();
+
+    this->SetMinSize(wxSize(80 * em, 30 * em));
+    this->SetSizer(topSizer);
+    topSizer->SetSizeHints(this);
+}
+
+void DiffPresetDialog::update_tree()
+{
+    Search::OptionsSearcher& searcher = wxGetApp().sidebar().get_searcher();
+    searcher.sort_options_by_opt_key();
+
+    m_tree_model->Clear();
+    wxString bottom_info = "";
+
+    // list of the presets with unsaved changes
+    std::vector<const PresetCollection*> presets_list;
+    if (m_type == Preset::TYPE_INVALID)
+    {
+        PrinterTechnology printer_technology = wxGetApp().preset_bundle->printers.get_edited_preset().printer_technology();
+
+        for (Tab* tab : wxGetApp().tabs_list)
+            if (tab->supports_printer_technology(printer_technology) && tab->current_preset_is_dirty())
+                presets_list.emplace_back(tab->get_presets());
+    }
+    else
+        presets_list.emplace_back(get_preset_collection(m_type));
+
+    // Display a dialog showing the dirty options in a human readable form.
+    for (const PresetCollection* presets : presets_list)
+    {
+        const Preset* left_preset  = presets->find_preset(into_u8(m_presets_left ->GetString(m_presets_left ->GetSelection())));
+        const Preset* right_preset = presets->find_preset(into_u8(m_presets_right->GetString(m_presets_right->GetSelection())));
+        if (!left_preset || !right_preset) {
+            bottom_info = _L("One of the presets doesn't found");
+            continue;
+        }
+
+        const DynamicPrintConfig& left_config   = left_preset->config;
+        const PrinterTechnology&  left_pt       = left_preset->printer_technology();
+        const DynamicPrintConfig& right_congig  = right_preset->config;
+
+        Preset::Type type = presets->type();
+
+        if (left_pt != right_preset->printer_technology()) {
+            bottom_info = _L("Comparable presets has different printer technology");
+            continue;
+        }
+
+        // Collect dirty options.
+        const bool deep_compare = (type == Preset::TYPE_PRINTER || type == Preset::TYPE_SLA_MATERIAL);
+        auto dirty_options = presets->dirty_options(left_preset, right_preset, deep_compare);
+
+        if (dirty_options.empty()) {
+            bottom_info = _L("Presets are the same");
+            continue;
+        }
+
+        m_tree_model->AddPreset(type, "\"" + from_u8(left_preset->name) + "\" vs \"" + from_u8(right_preset->name) + "\"", left_pt);
+
+        const std::map<wxString, std::string>& category_icon_map = wxGetApp().get_tab(type)->get_category_icon_map();
+
+        // process changes of extruders count
+        if (type == Preset::TYPE_PRINTER && left_pt == ptFFF &&
+            left_config.opt<ConfigOptionStrings>("extruder_colour")->values.size() != right_congig.opt<ConfigOptionStrings>("extruder_colour")->values.size()) {
+            wxString local_label = _L("Extruders count");
+            wxString left_val = from_u8((boost::format("%1%") % left_config.opt<ConfigOptionStrings>("extruder_colour")->values.size()).str());
+            wxString right_val = from_u8((boost::format("%1%") % right_congig.opt<ConfigOptionStrings>("extruder_colour")->values.size()).str());
+
+            m_tree_model->AddOption(type, _L("General"), _L("Capabilities"), local_label, left_val, right_val, category_icon_map.at("General"));
+        }
+
+        for (const std::string& opt_key : dirty_options) {
+            wxString left_val = get_string_value(opt_key, left_config);
+            wxString right_val = get_string_value(opt_key, right_congig);
+
+            Search::Option option = searcher.get_option(opt_key, get_full_label(opt_key, left_config), type);
+            if (option.opt_key != boost::nowide::widen(opt_key)) {
+                // temporary solution, just for testing
+                m_tree_model->AddOption(type, _L("Undef category"), _L("Undef group"), opt_key, left_val, right_val, "question");
+                // When founded option isn't the correct one.
+                // It can be for dirty_options: "default_print_profile", "printer_model", "printer_settings_id",
+                // because of they don't exist in searcher
+                continue;
+            }
+            m_tree_model->AddOption(type, option.category_local, option.group_local, option.label_local, left_val, right_val, category_icon_map.at(option.category));
+        }
+    }
+
+    bool tree_was_shown = m_tree->IsShown();
+    bool show_tree = bottom_info.IsEmpty();
+    m_tree->Show(show_tree);
+    if (!show_tree)
+        m_bottom_info_line->SetLabel(bottom_info);
+    m_bottom_info_line->Show(!show_tree);
+
+    if (tree_was_shown == m_tree->IsShown())
+        Layout();
+    else {
+        Fit();
+        Refresh();
+    }
+}
+
+void DiffPresetDialog::on_dpi_changed(const wxRect&)
+{
+    int em = em_unit();
+
+    msw_buttons_rescale(this, em, { wxID_CANCEL});
+
+    const wxSize& size = wxSize(80 * em, 30 * em);
+    SetMinSize(size);
+
+    m_tree->GetColumn(UnsavedChangesModel::colIconText)->SetWidth(35 * em);
+    m_tree->GetColumn(UnsavedChangesModel::colOldValue)->SetWidth(15 * em);
+    m_tree->GetColumn(UnsavedChangesModel::colNewValue)->SetWidth(15 * em);
+
+    m_tree_model->Rescale();
+    m_tree->Refresh();
+
+    Fit();
+    Refresh();
+}
+
+void DiffPresetDialog::on_sys_color_changed()
+{
+    // msw_rescale updates just icons, so use it
+    m_tree_model->Rescale();
+    m_tree->Refresh();
+
+    Refresh();
+}
+
 
 
 

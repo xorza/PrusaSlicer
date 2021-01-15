@@ -507,9 +507,9 @@ private:
         { return const_cast<PresetCollection*>(this)->find_preset_renamed(name); }
 
     size_t update_compatible_internal(const PresetWithVendorProfile &active_printer, const PresetWithVendorProfile *active_print, PresetSelectCompatibleType unselect_if_incompatible);
-
+public:
     static std::vector<std::string> dirty_options(const Preset *edited, const Preset *reference, const bool is_printer_type = false);
-
+private:
     // Type of this PresetCollection: TYPE_PRINT, TYPE_FILAMENT or TYPE_PRINTER.
     Preset::Type            m_type;
     // List of presets, starting with the "- default -" preset.

@@ -196,6 +196,7 @@ void Tab::create_preset_tab()
     m_scaled_buttons.reserve(6);
     m_scaled_buttons.reserve(2);
 
+    add_scaled_button(panel, &m_btn_compare_preset, "compare");
     add_scaled_button(panel, &m_btn_save_preset, "save");
     add_scaled_button(panel, &m_btn_delete_preset, "cross");
     if (m_type == Preset::Type::TYPE_PRINTER)
@@ -207,6 +208,7 @@ void Tab::create_preset_tab()
 
     add_scaled_button(panel, &m_btn_hide_incompatible_presets, m_bmp_hide_incompatible_presets.name());
 
+    m_btn_compare_preset->SetToolTip(_L("Compare this preset with some another"));
     // TRN "Save current Settings"
     m_btn_save_preset->SetToolTip(from_u8((boost::format(_utf8(L("Save current %s"))) % m_title).str()));
     m_btn_delete_preset->SetToolTip(_(L("Delete this preset")));
@@ -271,6 +273,9 @@ void Tab::create_preset_tab()
     m_hsizer->Add(m_undo_btn, 0, wxALIGN_CENTER_VERTICAL);
     m_hsizer->AddSpacer(int(32 * scale_factor));
     m_hsizer->Add(m_search_btn, 0, wxALIGN_CENTER_VERTICAL);
+    m_hsizer->AddSpacer(int(8*scale_factor));
+    m_hsizer->Add(m_btn_compare_preset, 0, wxALIGN_CENTER_VERTICAL);
+    m_hsizer->AddSpacer(int(16*scale_factor));
     // m_hsizer->AddStretchSpacer(32);
     // StretchSpacer has a strange behavior under OSX, so
     // There is used just additional sizer for m_mode_sizer with right alignment
@@ -338,6 +343,7 @@ void Tab::create_preset_tab()
     m_page_view->SetScrollbars(1, 20, 1, 2);
     m_hsizer->Add(m_page_view, 1, wxEXPAND | wxLEFT, 5);
 
+    m_btn_compare_preset->Bind(wxEVT_BUTTON, ([this](wxCommandEvent e) { compare_preset(); }));
     m_btn_save_preset->Bind(wxEVT_BUTTON, ([this](wxCommandEvent e) { save_preset(); }));
     m_btn_delete_preset->Bind(wxEVT_BUTTON, ([this](wxCommandEvent e) { delete_preset(); }));
     m_btn_hide_incompatible_presets->Bind(wxEVT_BUTTON, ([this](wxCommandEvent e) {
@@ -2057,11 +2063,18 @@ bool Tab::current_preset_is_dirty()
 void TabPrinter::build()
 {
     m_presets = &m_preset_bundle->printers;
-    load_initial_data();
-
     m_printer_technology = m_presets->get_selected_preset().printer_technology();
 
-    m_presets->get_selected_preset().printer_technology() == ptSLA ? build_sla() : build_fff();
+    // For DiffPresetDialog we use options list which is saved in Searcher class.
+    // Options for the Searcher is added in the moment of pages creation.
+    // So, build first of all printer pages for non-selected printer technology...
+    std::string def_preset_name = "- default " + std::string(m_printer_technology == ptSLA ? "FFF" : "SLA") + " -";
+    m_config = &m_presets->find_preset(def_preset_name)->config;
+    m_printer_technology == ptSLA ? build_fff() : build_sla();
+
+    // ... and than for selected printer technology
+    load_initial_data();
+    m_printer_technology == ptSLA ? build_sla() : build_fff();
 }
 
 void TabPrinter::build_print_host_upload_group(Page* page)
@@ -2096,7 +2109,8 @@ void TabPrinter::build_fff()
     m_initial_extruders_count = m_extruders_count = nozzle_diameter->values.size();
     wxGetApp().sidebar().update_objects_list_extruder_column(m_initial_extruders_count);
 
-    const Preset* parent_preset = m_presets->get_selected_preset_parent();
+    const Preset* parent_preset = m_printer_technology == ptSLA ? nullptr // just for first build, if SLA printer preset is selected 
+                                  : m_presets->get_selected_preset_parent();
     m_sys_extruders_count = parent_preset == nullptr ? 0 :
             static_cast<const ConfigOptionFloats*>(parent_preset->config.option("nozzle_diameter"))->values.size();
 
@@ -2386,7 +2400,9 @@ void TabPrinter::append_option_line(ConfigOptionsGroupShp optgroup, const std::s
     auto option = optgroup->get_option(opt_key, 0);
     auto line = Line{ option.opt.full_label, "" };
     line.append_option(option);
-    if (m_use_silent_mode)
+    if (m_use_silent_mode 
+        || m_printer_technology == ptSLA // just for first build, if SLA printer preset is selected 
+        )
         line.append_option(optgroup->get_option(opt_key, 1));
     optgroup->append_line(line);
 }
@@ -2466,23 +2482,14 @@ void TabPrinter::build_unregular_pages()
     size_t		n_before_extruders = 2;			//	Count of pages before Extruder pages
     bool		is_marlin_flavor = m_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value == gcfMarlin;
 
+    // just for first build, if SLA printer preset is selected 
+    bool        just_initial_build = m_printer_technology == ptSLA;
+
     /* ! Freeze/Thaw in this function is needed to avoid call OnPaint() for erased pages
      * and be cause of application crash, when try to change Preset in moment,
      * when one of unregular pages is selected.
      *  */
     Freeze();
-
-#ifdef __WXMSW__
-    /* Workaround for correct layout of controls inside the created page:
-     * In some _strange_ way we should we should imitate page resizing.
-     */
-/*    auto layout_page = [this](PageShp page)
-    {
-        const wxSize& sz = page->GetSize();
-        page->SetSize(sz.x + 1, sz.y + 1);
-        page->SetSize(sz);
-    };*/
-#endif //__WXMSW__
 
     // Add/delete Kinematics page according to is_marlin_flavor
     size_t existed_page = 0;
@@ -2495,12 +2502,12 @@ void TabPrinter::build_unregular_pages()
             break;
         }
 
-    if (existed_page < n_before_extruders && is_marlin_flavor) {
+    if (existed_page < n_before_extruders && (is_marlin_flavor || just_initial_build)) {
         auto page = build_kinematics_page();
-#ifdef __WXMSW__
-//        layout_page(page);
-#endif
-        m_pages.insert(m_pages.begin() + n_before_extruders, page);
+        if (just_initial_build)
+            page->clear();
+        else
+            m_pages.insert(m_pages.begin() + n_before_extruders, page);
     }
 
     if (is_marlin_flavor)
@@ -2518,7 +2525,8 @@ void TabPrinter::build_unregular_pages()
             }
         m_has_single_extruder_MM_page = false;
     }
-    if (m_extruders_count > 1 && m_config->opt_bool("single_extruder_multi_material") && !m_has_single_extruder_MM_page) {
+    if (just_initial_build ||
+        (m_extruders_count > 1 && m_config->opt_bool("single_extruder_multi_material") && !m_has_single_extruder_MM_page)) {
         // create a page, but pretend it's an extruder page, so we can add it to m_pages ourselves
         auto page = add_options_page(L("Single extruder MM setup"), "printer", true);
         auto optgroup = page->new_optgroup(L("Single extruder multimaterial parameters"));
@@ -2527,8 +2535,12 @@ void TabPrinter::build_unregular_pages()
         optgroup->append_single_option_line("parking_pos_retraction");
         optgroup->append_single_option_line("extra_loading_move");
         optgroup->append_single_option_line("high_current_on_filament_swap");
-        m_pages.insert(m_pages.end() - n_after_single_extruder_MM, page);
-        m_has_single_extruder_MM_page = true;
+        if (just_initial_build)
+            page->clear();
+        else {
+            m_pages.insert(m_pages.end() - n_after_single_extruder_MM, page);
+            m_has_single_extruder_MM_page = true;
+        }
     }
 
     // Build missed extruder pages
@@ -2633,10 +2645,6 @@ void TabPrinter::build_unregular_pages()
             line = optgroup->create_single_option_line("extruder_colour", wxEmptyString, extruder_idx);
             line.append_widget(reset_to_filament_color);
             optgroup->append_line(line);
-
-#ifdef __WXMSW__
-//        layout_page(page);
-#endif
     }
 
     // # remove extra pages
@@ -2647,6 +2655,10 @@ void TabPrinter::build_unregular_pages()
     Thaw();
 
     m_extruders_count_old = m_extruders_count;
+
+    if (just_initial_build)
+        return; // next part of code is no needed to execute at this moment
+
     rebuild_page_tree();
 
     // Reload preset pages with current configuration values
@@ -3363,6 +3375,12 @@ void Tab::OnKeyDown(wxKeyEvent& event)
         m_treectrl->Navigate(event.ShiftDown() ? wxNavigationKeyEvent::IsBackward : wxNavigationKeyEvent::IsForward);
     else
         event.Skip();
+}
+
+void Tab::compare_preset()
+{
+    DiffPresetDialog dlg(m_type);
+    dlg.ShowModal();
 }
 
 // Save the current preset into file.

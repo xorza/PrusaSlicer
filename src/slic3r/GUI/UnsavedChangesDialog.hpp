@@ -20,6 +20,7 @@ namespace GUI{
 // ----------------------------------------------------------------------------
 
 class ModelNode;
+class PresetComboBox;
 using ModelNodePtrArray = std::vector<std::unique_ptr<ModelNode>>;
 
 // On all of 3 different platforms Bitmap+Text icon column looks different 
@@ -42,17 +43,6 @@ class ModelNode
     wxString            m_old_color;
     wxString            m_new_color;
 
-    // TODO/FIXME:
-    // the GTK version of wxDVC (in particular wxDataViewCtrlInternal::ItemAdded)
-    // needs to know in advance if a node is or _will be_ a container.
-    // Thus implementing:
-    //   bool IsContainer() const
-    //    { return m_children.size()>0; }
-    // doesn't work with wxGTK when UnsavedChangesModel::AddToClassical is called
-    // AND the classical node was removed (a new node temporary without children
-    // would be added to the control)
-    bool                m_container {true};
-
 #ifdef __linux__
     wxIcon              get_bitmap(const wxString& color);
 #else
@@ -74,6 +64,17 @@ public:
     wxString    m_text;
     wxString    m_old_value;
     wxString    m_new_value;
+
+    // TODO/FIXME:
+    // the GTK version of wxDVC (in particular wxDataViewCtrlInternal::ItemAdded)
+    // needs to know in advance if a node is or _will be_ a container.
+    // Thus implementing:
+    //   bool IsContainer() const
+    //    { return m_children.size()>0; }
+    // doesn't work with wxGTK when UnsavedChangesModel::AddToClassical is called
+    // AND the classical node was removed (a new node temporary without children
+    // would be added to the control)
+    bool                m_container {true};
 
     // preset(root) node
     ModelNode(Preset::Type preset_type, wxWindow* parent_win, const wxString& text, const std::string& icon_name);
@@ -113,7 +114,7 @@ public:
 class UnsavedChangesModel : public wxDataViewModel
 {
     wxWindow*               m_parent_win { nullptr };
-    std::vector<ModelNode*> m_preset_nodes;
+    ModelNodePtrArray       m_preset_nodes;
 
     wxDataViewCtrl*         m_ctrl{ nullptr };
 
@@ -144,7 +145,7 @@ public:
     };
 
     UnsavedChangesModel(wxWindow* parent);
-    ~UnsavedChangesModel();
+    ~UnsavedChangesModel() {}
 
     void            SetAssociatedControl(wxDataViewCtrl* ctrl) { m_ctrl = ctrl; }
 
@@ -158,6 +159,9 @@ public:
     unsigned int    GetColumnCount() const override { return colMax; }
     wxString        GetColumnType(unsigned int col) const override;
     void            Rescale();
+
+    wxDataViewItem  Delete(const wxDataViewItem& item);
+    void            Clear();
 
     wxDataViewItem  GetParent(const wxDataViewItem& item) const override;
     unsigned int    GetChildren(const wxDataViewItem& parent, wxDataViewItemArray& array) const override;
@@ -268,6 +272,34 @@ class FullCompareDialog : public wxDialog
 public:
     FullCompareDialog(const wxString& option_name, const wxString& old_value, const wxString& new_value);
     ~FullCompareDialog() {}
+};
+
+
+//------------------------------------------
+//          DiffPresetDialog
+//------------------------------------------
+class DiffPresetDialog : public DPIDialog
+{
+    wxDataViewCtrl*         m_tree{ nullptr };
+    UnsavedChangesModel*    m_tree_model{ nullptr };
+
+    PresetComboBox*         m_presets_left  { nullptr };
+    PresetComboBox*         m_presets_right { nullptr };
+
+    wxStaticText*           m_top_info_line   { nullptr };
+    wxStaticText*           m_bottom_info_line{ nullptr };
+
+    Preset::Type            m_type;
+
+    void                    update_tree();
+
+public:
+    DiffPresetDialog(Preset::Type type = Preset::Type::TYPE_INVALID/**/);
+    ~DiffPresetDialog() {}
+
+protected:
+    void on_dpi_changed(const wxRect& suggested_rect) override;
+    void on_sys_color_changed() override;
 };
 
 } 
