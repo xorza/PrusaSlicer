@@ -1302,9 +1302,14 @@ static const PresetCollection* get_preset_collection(Preset::Type type_) {
 //------------------------------------------
 //          DiffPresetDialog
 //------------------------------------------
+static std::string get_selection(PresetComboBox* preset_combo)
+{
+    return into_u8(preset_combo->GetString(preset_combo->GetSelection()));
+}
+
 DiffPresetDialog::DiffPresetDialog(Preset::Type type/* = Preset::Type::TYPE_INVALID*/)
     : DPIDialog(static_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY, format_wxstr(_L("Compare %1% Presets"), type), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER),
-    m_type(type)
+    m_pr_technology(wxGetApp().preset_bundle->printers.get_edited_preset().printer_technology())
 {    
     wxColour bgr_clr = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
     SetBackgroundColour(bgr_clr);
@@ -1325,19 +1330,47 @@ DiffPresetDialog::DiffPresetDialog(Preset::Type type/* = Preset::Type::TYPE_INVA
     m_bottom_info_line = new wxStaticText(this, wxID_ANY, "");
     m_bottom_info_line->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT).Bold());
 
-    const PresetCollection* collection = get_preset_collection(type);
-    wxBoxSizer* presets_sizer = new wxBoxSizer(wxHORIZONTAL);
+    wxBoxSizer* presets_sizer = new wxBoxSizer(wxVERTICAL);
+    std::vector<Preset::Type> types;
 
-    auto add_preset_combobox = [collection, presets_sizer, type, em, this](PresetComboBox** cb) {
-        *cb = new PresetComboBox(this, type, wxSize(em * 35, -1));
-        (*cb)->set_selection_changed_function([this](int selection) { update_tree(); });
-        (*cb)->update(collection->get_selected_preset().name);
+    if (type == Preset::TYPE_INVALID)
+    {
+        if (m_pr_technology == ptFFF)
+            types = { Preset::TYPE_PRINT, Preset::TYPE_FILAMENT };
+        else
+            types = { Preset::TYPE_SLA_PRINT, Preset::TYPE_SLA_MATERIAL };
+        types.push_back(Preset::TYPE_PRINTER);
+    }
+    else
+        types = { type };
+    
+    for (auto new_type : types)
+    {
+        const PresetCollection* collection = get_preset_collection(new_type);
+        wxBoxSizer* sizer = new wxBoxSizer(wxHORIZONTAL);
+        PresetComboBox* presets_left;
+        PresetComboBox* presets_right;
+        ScalableButton* equal_bmp = new ScalableButton(this, wxID_ANY, "equal");
 
-        presets_sizer->Add(*cb, 1, wxRIGHT|wxLEFT, 5);
-    };
+        auto add_preset_combobox = [collection, sizer, new_type, em, this](PresetComboBox** cb) {
+            *cb = new PresetComboBox(this, new_type, wxSize(em * 35, -1));
+            (*cb)->set_selection_changed_function([this](int) { update_tree(); });
+            (*cb)->update(collection->get_selected_preset().name);
 
-    add_preset_combobox(&m_presets_left);
-    add_preset_combobox(&m_presets_right);
+            sizer->Add(*cb, 1, wxRIGHT | wxLEFT, 5);
+        };
+        add_preset_combobox(&presets_left);
+        sizer->Add(equal_bmp, 0, wxRIGHT | wxLEFT, 5);
+        add_preset_combobox(&presets_right);
+        presets_sizer->Add(sizer, 1, wxTOP, 5);
+
+        m_preset_combos.push_back({ presets_left, equal_bmp, presets_right });
+
+        equal_bmp->Bind(wxEVT_BUTTON, [presets_left, presets_right, this](wxEvent&) {
+            presets_right->update(get_selection(presets_left));
+            update_tree();
+        });
+    }
 
     m_tree = new DiffViewCtrl(this, wxSize(em * 65, em * 40));
     m_tree->AppendBmpTextColumn("",                      DiffModel::colIconText, 35);
@@ -1365,27 +1398,18 @@ void DiffPresetDialog::update_tree()
 
     m_tree->model->Clear();
     wxString bottom_info = "";
+    bool show_tree = false;
 
-    // list of the presets with unsaved changes
-    std::vector<const PresetCollection*> presets_list;
-    if (m_type == Preset::TYPE_INVALID)
+    for (auto preset_combos : m_preset_combos)
     {
-        PrinterTechnology printer_technology = wxGetApp().preset_bundle->printers.get_edited_preset().printer_technology();
+        Preset::Type type = preset_combos.presets_left->get_type();
 
-        for (Tab* tab : wxGetApp().tabs_list)
-            if (tab->supports_printer_technology(printer_technology) && tab->current_preset_is_dirty())
-                presets_list.emplace_back(tab->get_presets());
-    }
-    else
-        presets_list.emplace_back(get_preset_collection(m_type));
-
-    // Display a dialog showing the dirty options in a human readable form.
-    for (const PresetCollection* presets : presets_list)
-    {
-        const Preset* left_preset  = presets->find_preset(into_u8(m_presets_left ->GetString(m_presets_left ->GetSelection())));
-        const Preset* right_preset = presets->find_preset(into_u8(m_presets_right->GetString(m_presets_right->GetSelection())));
+        const PresetCollection* presets = get_preset_collection(type);
+        const Preset* left_preset  = presets->find_preset(get_selection(preset_combos.presets_left));
+        const Preset* right_preset = presets->find_preset(get_selection(preset_combos.presets_right));
         if (!left_preset || !right_preset) {
             bottom_info = _L("One of the presets doesn't found");
+            preset_combos.equal_bmp->SetBitmap_(ScalableBitmap(this, "question"));
             continue;
         }
 
@@ -1393,10 +1417,9 @@ void DiffPresetDialog::update_tree()
         const PrinterTechnology&  left_pt       = left_preset->printer_technology();
         const DynamicPrintConfig& right_congig  = right_preset->config;
 
-        Preset::Type type = presets->type();
-
         if (left_pt != right_preset->printer_technology()) {
-            bottom_info = _L("Comparable presets has different printer technology");
+            bottom_info = _L("Comparable printer presets has different printer technology");
+            preset_combos.equal_bmp->SetBitmap_(ScalableBitmap(this, "question"));
             continue;
         }
 
@@ -1406,8 +1429,12 @@ void DiffPresetDialog::update_tree()
 
         if (dirty_options.empty()) {
             bottom_info = _L("Presets are the same");
+            preset_combos.equal_bmp->SetBitmap_(ScalableBitmap(this, "equal"));
             continue;
         }
+
+        show_tree = true;
+        preset_combos.equal_bmp->SetBitmap_(ScalableBitmap(this, "not_equal"));
 
         m_tree->model->AddPreset(type, "\"" + from_u8(left_preset->name) + "\" vs \"" + from_u8(right_preset->name) + "\"", left_pt);
 
@@ -1442,7 +1469,6 @@ void DiffPresetDialog::update_tree()
     }
 
     bool tree_was_shown = m_tree->IsShown();
-    bool show_tree = bottom_info.IsEmpty();
     m_tree->Show(show_tree);
     if (!show_tree)
         m_bottom_info_line->SetLabel(bottom_info);
@@ -1465,8 +1491,11 @@ void DiffPresetDialog::on_dpi_changed(const wxRect&)
     const wxSize& size = wxSize(80 * em, 30 * em);
     SetMinSize(size);
 
-    m_presets_left->msw_rescale();
-    m_presets_right->msw_rescale();
+    for (auto preset_combos : m_preset_combos) {
+        preset_combos.presets_left->msw_rescale();
+        preset_combos.equal_bmp->msw_rescale();
+        preset_combos.presets_right->msw_rescale();
+    }
 
     m_tree->Rescale(em);
 

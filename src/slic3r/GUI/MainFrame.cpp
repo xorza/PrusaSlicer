@@ -37,6 +37,7 @@
 #include <string_view>
 
 #include "GUI_App.hpp"
+#include "UnsavedChangesDialog.hpp"
 
 #ifdef _WIN32
 #include <dbt.h>
@@ -1151,6 +1152,14 @@ void MainFrame::init_menubar_as_editor()
         append_menu_item(editMenu, wxID_ANY, _L("Searc&h") + "\tCtrl+F",
             _L("Search in settings"), [this](wxCommandEvent&) { m_plater->search(/*m_tabpanel->GetCurrentPage() == */m_plater->IsShown()); },
             "search", nullptr, []() {return true; }, this);
+
+        editMenu->AppendSeparator();
+        append_menu_item(editMenu, wxID_ANY, _L("Compare presets")/* + "\tCtrl+F"*/,
+            _L("Compare presets"), [this](wxCommandEvent&) {
+                DiffPresetDialog dlg;
+                dlg.ShowModal();
+        },
+            "compare", nullptr, []() {return true; }, this);
     }
 
     // Window menu

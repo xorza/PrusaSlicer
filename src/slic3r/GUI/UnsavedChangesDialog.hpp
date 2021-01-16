@@ -308,16 +308,23 @@ public:
 class DiffPresetDialog : public DPIDialog
 {
     DiffViewCtrl*           m_tree              { nullptr };
-    PresetComboBox*         m_presets_left      { nullptr };
-    PresetComboBox*         m_presets_right     { nullptr };
     wxStaticText*           m_top_info_line     { nullptr };
     wxStaticText*           m_bottom_info_line  { nullptr };
-    Preset::Type            m_type;
+    PrinterTechnology       m_pr_technology;
 
     void                    update_tree();
 
+    struct DiffPresets
+    {
+        PresetComboBox* presets_left    { nullptr };
+        ScalableButton* equal_bmp       { nullptr };
+        PresetComboBox* presets_right   { nullptr };
+    };
+
+    std::vector<DiffPresets> m_preset_combos;
+
 public:
-    DiffPresetDialog(Preset::Type type = Preset::Type::TYPE_INVALID/**/);
+    DiffPresetDialog(Preset::Type type = Preset::Type::TYPE_INVALID);
     ~DiffPresetDialog() {}
 
 protected:

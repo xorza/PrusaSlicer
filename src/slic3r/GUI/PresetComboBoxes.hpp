@@ -63,7 +63,8 @@ public:
     void add_physical_printer();
     bool del_physical_printer(const wxString& note_string = wxEmptyString);
 
-    virtual wxString get_preset_name(const Preset& preset);
+    virtual wxString get_preset_name(const Preset& preset); 
+    Preset::Type     get_type() { return m_type; }
     virtual void update();
     virtual void msw_rescale();
 
