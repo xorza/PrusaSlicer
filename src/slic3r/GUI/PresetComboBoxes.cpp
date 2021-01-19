@@ -241,7 +241,7 @@ void PresetComboBox::update(std::string select_preset_name)
     for (size_t i = presets.front().is_visible ? 0 : m_collection->num_default_presets(); i < presets.size(); ++i)
     {
         const Preset& preset = presets[i];
-        if (!preset.is_visible || !preset.is_compatible)
+        if (!m_show_all && (!preset.is_visible || !preset.is_compatible))
             continue;
 
         // marker used for disable incompatible printer models for the selected physical printer
@@ -342,6 +342,12 @@ bool PresetComboBox::del_physical_printer(const wxString& note_string/* = wxEmpt
     }
 
     return true;
+}
+
+void PresetComboBox::show_all(bool show_all)
+{
+    m_show_all = show_all;
+    update();
 }
 
 void PresetComboBox::update()

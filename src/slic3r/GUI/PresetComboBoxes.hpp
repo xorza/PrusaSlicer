@@ -30,6 +30,7 @@ class BitmapCache;
 // BitmapComboBox used to presets list on Sidebar and Tabs
 class PresetComboBox : public wxBitmapComboBox
 {
+    bool m_show_all { false };
 public:
     PresetComboBox(wxWindow* parent, Preset::Type preset_type, const wxSize& size = wxDefaultSize);
     ~PresetComboBox();
@@ -65,6 +66,7 @@ public:
 
     virtual wxString get_preset_name(const Preset& preset); 
     Preset::Type     get_type() { return m_type; }
+    void             show_all(bool show_all);
     virtual void update();
     virtual void msw_rescale();
 

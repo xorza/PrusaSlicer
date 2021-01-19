@@ -587,6 +587,7 @@ DiffViewCtrl::DiffViewCtrl(wxWindow* parent, wxSize size)
     model->SetAssociatedControl(this);
 
     this->Bind(wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &DiffViewCtrl::context_menu, this);
+    this->Bind(wxEVT_DATAVIEW_ITEM_ACTIVATED,    &DiffViewCtrl::context_menu, this);
     this->Bind(wxEVT_DATAVIEW_ITEM_VALUE_CHANGED, &DiffViewCtrl::item_value_changed, this);
 }
 
@@ -640,6 +641,12 @@ void DiffViewCtrl::Append(  const std::string& opt_key, Preset::Type type,
 
     m_items_map.emplace(model->AddOption(type, category_name, group_name, option_name, old_val, new_val, category_icon_name), item_data);
 
+}
+
+void DiffViewCtrl::Clear()
+{
+    model->Clear();
+    m_items_map.clear();
 }
 
 wxString DiffViewCtrl::get_short_string(wxString full_string)
@@ -1028,34 +1035,62 @@ static wxString get_string_value(std::string opt_key, const DynamicPrintConfig& 
     case coInt:
         return from_u8((boost::format("%1%") % config.opt_int(opt_key)).str());
     case coInts: {
-        int val = is_nullable ? 
-            config.opt<ConfigOptionIntsNullable>(opt_key)->get_at(opt_idx) :
-            config.opt<ConfigOptionInts>(opt_key)->get_at(opt_idx);
-        return from_u8((boost::format("%1%") % val).str());
+        if (is_nullable) {
+            auto values = config.opt<ConfigOptionIntsNullable>(opt_key);
+            if (opt_idx < values->size())
+                return from_u8((boost::format("%1%") % values->get_at(opt_idx)).str());
+        }
+        else {
+            auto values = config.opt<ConfigOptionInts>(opt_key);
+            if (opt_idx < values->size())
+                return from_u8((boost::format("%1%") % values->get_at(opt_idx)).str());
+        }
+        return _L("Undef");
     }
     case coBool:
         return config.opt_bool(opt_key) ? "true" : "false";
     case coBools: {
-        bool val = is_nullable ?
-            config.opt<ConfigOptionBoolsNullable>(opt_key)->get_at(opt_idx) :
-            config.opt<ConfigOptionBools>(opt_key)->get_at(opt_idx);
-        return val ? "true" : "false";
+        if (is_nullable) {
+            auto values = config.opt<ConfigOptionBoolsNullable>(opt_key);
+            if (opt_idx < values->size())
+                return values->get_at(opt_idx) ? "true" : "false";
+        }
+        else {
+            auto values = config.opt<ConfigOptionBools>(opt_key);
+            if (opt_idx < values->size())
+                return values->get_at(opt_idx) ? "true" : "false";
+        }
+        return _L("Undef");
     }
     case coPercent:
         return from_u8((boost::format("%1%%%") % int(config.optptr(opt_key)->getFloat())).str());
     case coPercents: {
-        double val = is_nullable ?
-            config.opt<ConfigOptionPercentsNullable>(opt_key)->get_at(opt_idx) :
-            config.opt<ConfigOptionPercents>(opt_key)->get_at(opt_idx);
-        return from_u8((boost::format("%1%%%") % int(val)).str());
+        if (is_nullable) {
+            auto values = config.opt<ConfigOptionPercentsNullable>(opt_key);
+            if (opt_idx < values->size())
+                return from_u8((boost::format("%1%%%") % values->get_at(opt_idx)).str());
+        }
+        else {
+            auto values = config.opt<ConfigOptionPercents>(opt_key);
+            if (opt_idx < values->size())
+                return from_u8((boost::format("%1%%%") % values->get_at(opt_idx)).str());
+        }
+        return _L("Undef");
     }
     case coFloat:
         return double_to_string(config.opt_float(opt_key));
     case coFloats: {
-        double val = is_nullable ?
-            config.opt<ConfigOptionFloatsNullable>(opt_key)->get_at(opt_idx) :
-            config.opt<ConfigOptionFloats>(opt_key)->get_at(opt_idx);
-        return double_to_string(val);
+        if (is_nullable) {
+            auto values = config.opt<ConfigOptionFloatsNullable>(opt_key);
+            if (opt_idx < values->size())
+                return double_to_string(values->get_at(opt_idx));
+        }
+        else {
+            auto values = config.opt<ConfigOptionFloats>(opt_key);
+            if (opt_idx < values->size())
+                return double_to_string(values->get_at(opt_idx));
+        }
+        return _L("Undef");
     }
     case coString:
         return from_u8(config.opt_string(opt_key));
@@ -1070,7 +1105,7 @@ static wxString get_string_value(std::string opt_key, const DynamicPrintConfig& 
                 out.RemoveLast(1);
                 return out;
             }
-            if (!strings->empty())
+            if (!strings->empty() && opt_idx < (int)strings->values.size())
                 return from_u8(strings->get_at(opt_idx));
         }
         break;
@@ -1307,8 +1342,8 @@ static std::string get_selection(PresetComboBox* preset_combo)
     return into_u8(preset_combo->GetString(preset_combo->GetSelection()));
 }
 
-DiffPresetDialog::DiffPresetDialog(Preset::Type type/* = Preset::Type::TYPE_INVALID*/)
-    : DPIDialog(static_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY, format_wxstr(_L("Compare %1% Presets"), type), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER),
+DiffPresetDialog::DiffPresetDialog()
+    : DPIDialog(static_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER),
     m_pr_technology(wxGetApp().preset_bundle->printers.get_edited_preset().printer_technology())
 {    
     wxColour bgr_clr = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
@@ -1331,20 +1366,8 @@ DiffPresetDialog::DiffPresetDialog(Preset::Type type/* = Preset::Type::TYPE_INVA
     m_bottom_info_line->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT).Bold());
 
     wxBoxSizer* presets_sizer = new wxBoxSizer(wxVERTICAL);
-    std::vector<Preset::Type> types;
-
-    if (type == Preset::TYPE_INVALID)
-    {
-        if (m_pr_technology == ptFFF)
-            types = { Preset::TYPE_PRINT, Preset::TYPE_FILAMENT };
-        else
-            types = { Preset::TYPE_SLA_PRINT, Preset::TYPE_SLA_MATERIAL };
-        types.push_back(Preset::TYPE_PRINTER);
-    }
-    else
-        types = { type };
     
-    for (auto new_type : types)
+    for (auto new_type : { Preset::TYPE_PRINT, Preset::TYPE_FILAMENT, Preset::TYPE_SLA_PRINT, Preset::TYPE_SLA_MATERIAL, Preset::TYPE_PRINTER })
     {
         const PresetCollection* collection = get_preset_collection(new_type);
         wxBoxSizer* sizer = new wxBoxSizer(wxHORIZONTAL);
@@ -1357,12 +1380,14 @@ DiffPresetDialog::DiffPresetDialog(Preset::Type type/* = Preset::Type::TYPE_INVA
             (*cb)->set_selection_changed_function([this](int) { update_tree(); });
             (*cb)->update(collection->get_selected_preset().name);
 
-            sizer->Add(*cb, 1, wxRIGHT | wxLEFT, 5);
+            sizer->Add(*cb, 1);
+            (*cb)->Show(new_type == Preset::TYPE_PRINTER);
         };
         add_preset_combobox(&presets_left);
         sizer->Add(equal_bmp, 0, wxRIGHT | wxLEFT, 5);
         add_preset_combobox(&presets_right);
         presets_sizer->Add(sizer, 1, wxTOP, 5);
+        equal_bmp->Show(new_type == Preset::TYPE_PRINTER);
 
         m_preset_combos.push_back({ presets_left, equal_bmp, presets_right });
 
@@ -1372,23 +1397,57 @@ DiffPresetDialog::DiffPresetDialog(Preset::Type type/* = Preset::Type::TYPE_INVA
         });
     }
 
+    m_show_all_presets = new wxCheckBox(this, wxID_ANY, _L("Show all preset (including incompatible)"));
+    m_show_all_presets->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent&) {
+        bool show_all = m_show_all_presets->GetValue();
+        for (auto preset_combos : m_preset_combos) {
+            if (preset_combos.presets_left->get_type() == Preset::TYPE_PRINTER)
+                continue;
+            preset_combos.presets_left->show_all(show_all);
+            preset_combos.presets_right->show_all(show_all);
+        }
+    });
+
     m_tree = new DiffViewCtrl(this, wxSize(em * 65, em * 40));
     m_tree->AppendBmpTextColumn("",                      DiffModel::colIconText, 35);
     m_tree->AppendBmpTextColumn(_L("Left Preset Value"), DiffModel::colOldValue, 15);
     m_tree->AppendBmpTextColumn(_L("Right Preset Value"),DiffModel::colNewValue, 15);
+    m_tree->Hide();
 
     wxBoxSizer* topSizer = new wxBoxSizer(wxVERTICAL);
 
     topSizer->Add(m_top_info_line, 0, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, 2 * border);
     topSizer->Add(presets_sizer, 0, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, border);
+    topSizer->Add(m_show_all_presets, 0, wxEXPAND | wxALL, border);
     topSizer->Add(m_bottom_info_line, 0, wxEXPAND | wxALL, 2 * border);
     topSizer->Add(m_tree, 1, wxEXPAND | wxALL, border);
-
-    update_tree();
 
     this->SetMinSize(wxSize(80 * em, 30 * em));
     this->SetSizer(topSizer);
     topSizer->SetSizeHints(this);
+}
+
+void DiffPresetDialog::show(Preset::Type type /* = Preset::TYPE_INVALID*/)
+{
+    this->SetTitle(type == Preset::TYPE_INVALID ? _L("Compare Presets") : format_wxstr(_L("Compare %1% Presets"), wxGetApp().get_tab(type)->name()));
+   
+    for (auto preset_combos : m_preset_combos) {
+        Preset::Type cb_type = preset_combos.presets_left->get_type();
+        bool show = type != Preset::TYPE_INVALID    ? type == cb_type :
+                    cb_type == Preset::TYPE_PRINTER ? true : 
+                    m_pr_technology == ptFFF        ? cb_type == Preset::TYPE_PRINT || cb_type == Preset::TYPE_FILAMENT :
+                                                      cb_type == Preset::TYPE_SLA_PRINT || cb_type == Preset::TYPE_SLA_MATERIAL;
+        preset_combos.presets_left->Show(show);
+        preset_combos.equal_bmp->Show(show);
+        preset_combos.presets_right->Show(show);
+    }
+
+    m_show_all_presets->Show(type != Preset::TYPE_PRINTER);
+    if (type == Preset::TYPE_INVALID)
+        Fit();
+
+    update_tree();
+    Show();
 }
 
 void DiffPresetDialog::update_tree()
@@ -1396,12 +1455,14 @@ void DiffPresetDialog::update_tree()
     Search::OptionsSearcher& searcher = wxGetApp().sidebar().get_searcher();
     searcher.sort_options_by_opt_key();
 
-    m_tree->model->Clear();
+    m_tree->Clear();
     wxString bottom_info = "";
     bool show_tree = false;
 
     for (auto preset_combos : m_preset_combos)
     {
+        if (!preset_combos.presets_left->IsShown())
+            continue;
         Preset::Type type = preset_combos.presets_left->get_type();
 
         const PresetCollection* presets = get_preset_collection(type);
@@ -1410,6 +1471,7 @@ void DiffPresetDialog::update_tree()
         if (!left_preset || !right_preset) {
             bottom_info = _L("One of the presets doesn't found");
             preset_combos.equal_bmp->SetBitmap_(ScalableBitmap(this, "question"));
+            preset_combos.equal_bmp->SetToolTip(bottom_info);
             continue;
         }
 
@@ -1420,21 +1482,28 @@ void DiffPresetDialog::update_tree()
         if (left_pt != right_preset->printer_technology()) {
             bottom_info = _L("Comparable printer presets has different printer technology");
             preset_combos.equal_bmp->SetBitmap_(ScalableBitmap(this, "question"));
+            preset_combos.equal_bmp->SetToolTip(bottom_info);
             continue;
         }
 
         // Collect dirty options.
         const bool deep_compare = (type == Preset::TYPE_PRINTER || type == Preset::TYPE_SLA_MATERIAL);
-        auto dirty_options = presets->dirty_options(left_preset, right_preset, deep_compare);
+        auto dirty_options = type == Preset::TYPE_PRINTER && left_pt == ptFFF &&
+                             left_config.opt<ConfigOptionStrings>("extruder_colour")->values.size() < right_congig.opt<ConfigOptionStrings>("extruder_colour")->values.size() ?
+                             presets->dirty_options(right_preset, left_preset, deep_compare) :
+                             presets->dirty_options(left_preset, right_preset, deep_compare);
 
         if (dirty_options.empty()) {
             bottom_info = _L("Presets are the same");
             preset_combos.equal_bmp->SetBitmap_(ScalableBitmap(this, "equal"));
+            preset_combos.equal_bmp->SetToolTip(bottom_info);
             continue;
         }
 
         show_tree = true;
         preset_combos.equal_bmp->SetBitmap_(ScalableBitmap(this, "not_equal"));
+        preset_combos.equal_bmp->SetToolTip(_L("Presets are different.\n"
+                                               "Click this button to select the same as left preset for the right preset."));
 
         m_tree->model->AddPreset(type, "\"" + from_u8(left_preset->name) + "\" vs \"" + from_u8(right_preset->name) + "\"", left_pt);
 

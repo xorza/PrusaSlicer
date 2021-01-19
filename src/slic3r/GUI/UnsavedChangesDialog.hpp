@@ -212,6 +212,7 @@ public:
     void    Rescale(int em = 0);
     void    Append(const std::string& opt_key, Preset::Type type, wxString category_name, wxString group_name, wxString option_name,
                    wxString old_value, wxString new_value, const std::string category_icon_name);
+    void    Clear();
 
     wxString    get_short_string(wxString full_string);
     bool        has_selection() { return !m_empty_selection; }
@@ -310,6 +311,8 @@ class DiffPresetDialog : public DPIDialog
     DiffViewCtrl*           m_tree              { nullptr };
     wxStaticText*           m_top_info_line     { nullptr };
     wxStaticText*           m_bottom_info_line  { nullptr };
+    wxCheckBox*             m_show_all_presets  { nullptr };
+
     PrinterTechnology       m_pr_technology;
 
     void                    update_tree();
@@ -324,8 +327,10 @@ class DiffPresetDialog : public DPIDialog
     std::vector<DiffPresets> m_preset_combos;
 
 public:
-    DiffPresetDialog(Preset::Type type = Preset::Type::TYPE_INVALID);
+    DiffPresetDialog();
     ~DiffPresetDialog() {}
+
+    void                    show(Preset::Type type = Preset::TYPE_INVALID);
 
 protected:
     void on_dpi_changed(const wxRect& suggested_rect) override;

@@ -3379,8 +3379,7 @@ void Tab::OnKeyDown(wxKeyEvent& event)
 
 void Tab::compare_preset()
 {
-    DiffPresetDialog dlg(m_type);
-    dlg.ShowModal();
+    wxGetApp().mainframe->diff_dialog.show(m_type);
 }
 
 // Save the current preset into file.

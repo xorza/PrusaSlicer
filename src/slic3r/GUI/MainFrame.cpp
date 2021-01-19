@@ -1152,14 +1152,6 @@ void MainFrame::init_menubar_as_editor()
         append_menu_item(editMenu, wxID_ANY, _L("Searc&h") + "\tCtrl+F",
             _L("Search in settings"), [this](wxCommandEvent&) { m_plater->search(/*m_tabpanel->GetCurrentPage() == */m_plater->IsShown()); },
             "search", nullptr, []() {return true; }, this);
-
-        editMenu->AppendSeparator();
-        append_menu_item(editMenu, wxID_ANY, _L("Compare presets")/* + "\tCtrl+F"*/,
-            _L("Compare presets"), [this](wxCommandEvent&) {
-                DiffPresetDialog dlg;
-                dlg.ShowModal();
-        },
-            "compare", nullptr, []() {return true; }, this);
     }
 
     // Window menu
@@ -1199,6 +1191,10 @@ void MainFrame::init_menubar_as_editor()
         windowMenu->AppendSeparator();
         append_menu_item(windowMenu, wxID_ANY, _L("Open new instance") + "\tCtrl+Shift+I", _L("Open a new PrusaSlicer instance"),
 			[this](wxCommandEvent&) { start_new_slicer(); }, "", nullptr, [this]() {return m_plater != nullptr && wxGetApp().app_config->get("single_instance") != "1"; }, this);
+
+        windowMenu->AppendSeparator();
+        append_menu_item(windowMenu, wxID_ANY, _L("Compare presets")/* + "\tCtrl+F"*/, _L("Compare presets"), 
+            [this](wxCommandEvent&) { diff_dialog.show();}, "compare", nullptr, []() {return true; }, this);
     }
 
     // View menu
