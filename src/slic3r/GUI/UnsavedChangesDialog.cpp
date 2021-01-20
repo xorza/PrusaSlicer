@@ -7,6 +7,8 @@
 #include <boost/optional.hpp>
 #include <boost/nowide/convert.hpp>
 
+#include <wx/tokenzr.h>
+
 #include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/PresetBundle.hpp"
 #include "format.hpp"
@@ -1300,16 +1302,45 @@ FullCompareDialog::FullCompareDialog(const wxString& option_name, const wxString
         grid_sizer->Add(text, 0, wxALL, border);
     };
 
-    auto add_value = [grid_sizer, border, this](wxString label, bool is_colored = false) {
-        wxTextCtrl* text = new wxTextCtrl(this, wxID_ANY, label, wxDefaultPosition, wxSize(300, -1), wxTE_MULTILINE | wxTE_READONLY | wxBORDER_NONE | wxTE_RICH);
-        text->SetStyle(0, label.Len(), wxTextAttr(is_colored ? wxColour(orange) : wxNullColour, wxNullColour, this->GetFont()));
-        grid_sizer->Add(text, 1, wxALL | wxEXPAND, border);
-    };
-
     add_header(_L("Old value"));
     add_header(_L("New value"));
-    add_value(old_value);
-    add_value(new_value, true);
+
+    auto get_set_from_val = [](wxString str) {
+        if (str.Find("\n") == wxNOT_FOUND)
+            str.Replace(" ", "\n");
+
+        std::set<wxString> str_set;
+
+        wxStringTokenizer strings(str, "\n");
+        while (strings.HasMoreTokens())
+            str_set.emplace(strings.GetNextToken());
+
+        return str_set;
+    };
+
+    std::set<wxString> old_set = get_set_from_val(old_value);
+    std::set<wxString> new_set = get_set_from_val(new_value);
+    std::set<wxString> old_new_diff_set;
+    std::set<wxString> new_old_diff_set;
+
+    std::set_difference(old_set.begin(), old_set.end(), new_set.begin(), new_set.end(), std::inserter(old_new_diff_set, old_new_diff_set.begin()));
+    std::set_difference(new_set.begin(), new_set.end(), old_set.begin(), old_set.end(), std::inserter(new_old_diff_set, new_old_diff_set.begin()));
+
+    auto add_value = [grid_sizer, border, this](wxString label, const std::set<wxString>& diff_set, bool is_colored = false) {
+        wxTextCtrl* text = new wxTextCtrl(this, wxID_ANY, label, wxDefaultPosition, wxSize(400, 400), wxTE_MULTILINE | wxTE_READONLY | wxBORDER_NONE | wxTE_RICH);
+        text->SetStyle(0, label.Len(), wxTextAttr(is_colored ? wxColour(orange) : wxNullColour, wxNullColour, this->GetFont()));
+
+        for (const wxString& str : diff_set) {
+            int pos = label.First(str);
+            if (pos == wxNOT_FOUND)
+                continue;
+            text->SetStyle(pos, pos + (int)str.Len(), wxTextAttr(is_colored ? wxColour(orange) : wxNullColour, wxNullColour, this->GetFont().Bold()));
+        }
+
+        grid_sizer->Add(text, 1, wxALL | wxEXPAND, border);
+    };
+    add_value(old_value, old_new_diff_set);
+    add_value(new_value, new_old_diff_set, true);
 
     sizer->Add(grid_sizer, 1, wxEXPAND);
 
