@@ -316,6 +316,7 @@ class DiffPresetDialog : public DPIDialog
     PrinterTechnology       m_pr_technology;
 
     void                    update_tree();
+    void                    update_controls_visibility(Preset::Type type = Preset::TYPE_INVALID);
 
     struct DiffPresets
     {
@@ -331,6 +332,7 @@ public:
     ~DiffPresetDialog() {}
 
     void                    show(Preset::Type type = Preset::TYPE_INVALID);
+    void                    update_presets(Preset::Type type = Preset::TYPE_INVALID);
 
 protected:
     void on_dpi_changed(const wxRect& suggested_rect) override;

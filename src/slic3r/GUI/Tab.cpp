@@ -2294,7 +2294,7 @@ void TabPrinter::build_fff()
 
         build_preset_description_line(optgroup.get());
 
-    build_unregular_pages();
+    build_unregular_pages(true);
 }
 
 void TabPrinter::build_sla()
@@ -2477,13 +2477,10 @@ PageShp TabPrinter::build_kinematics_page()
  * but "Machine limits" and "Single extruder MM setup" too
  * (These pages can changes according to the another values of a current preset)
  * */
-void TabPrinter::build_unregular_pages()
+void TabPrinter::build_unregular_pages(bool from_initial_build/* = false*/)
 {
     size_t		n_before_extruders = 2;			//	Count of pages before Extruder pages
     bool		is_marlin_flavor = m_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value == gcfMarlin;
-
-    // just for first build, if SLA printer preset is selected 
-    bool        just_initial_build = m_printer_technology == ptSLA;
 
     /* ! Freeze/Thaw in this function is needed to avoid call OnPaint() for erased pages
      * and be cause of application crash, when try to change Preset in moment,
@@ -2502,9 +2499,9 @@ void TabPrinter::build_unregular_pages()
             break;
         }
 
-    if (existed_page < n_before_extruders && (is_marlin_flavor || just_initial_build)) {
+    if (existed_page < n_before_extruders && (is_marlin_flavor || from_initial_build)) {
         auto page = build_kinematics_page();
-        if (just_initial_build)
+        if (from_initial_build)
             page->clear();
         else
             m_pages.insert(m_pages.begin() + n_before_extruders, page);
@@ -2525,7 +2522,7 @@ void TabPrinter::build_unregular_pages()
             }
         m_has_single_extruder_MM_page = false;
     }
-    if (just_initial_build ||
+    if (from_initial_build ||
         (m_extruders_count > 1 && m_config->opt_bool("single_extruder_multi_material") && !m_has_single_extruder_MM_page)) {
         // create a page, but pretend it's an extruder page, so we can add it to m_pages ourselves
         auto page = add_options_page(L("Single extruder MM setup"), "printer", true);
@@ -2535,7 +2532,7 @@ void TabPrinter::build_unregular_pages()
         optgroup->append_single_option_line("parking_pos_retraction");
         optgroup->append_single_option_line("extra_loading_move");
         optgroup->append_single_option_line("high_current_on_filament_swap");
-        if (just_initial_build)
+        if (from_initial_build)
             page->clear();
         else {
             m_pages.insert(m_pages.end() - n_after_single_extruder_MM, page);
@@ -2656,7 +2653,7 @@ void TabPrinter::build_unregular_pages()
 
     m_extruders_count_old = m_extruders_count;
 
-    if (just_initial_build)
+    if (m_printer_technology == ptSLA/*from_initial_build*/)
         return; // next part of code is no needed to execute at this moment
 
     rebuild_page_tree();
@@ -3190,6 +3187,9 @@ void Tab::select_preset(std::string preset_name, bool delete_current /*=false*/,
 
         load_current_preset();
     }
+
+    if (technology_changed)
+        wxGetApp().mainframe->diff_dialog.update_presets();
 }
 
 // If the current preset is dirty, the user is asked whether the changes may be discarded.
@@ -3451,6 +3451,9 @@ void Tab::save_preset(std::string name /*= ""*/, bool detach)
         for (Preset::Type preset_type : dependent)
             wxGetApp().get_tab(preset_type)->update_tab_ui();
     }
+
+    // update preset comboboxes in DiffPresetDlg
+    wxGetApp().mainframe->diff_dialog.update_presets(m_type);
 }
 
 // Called for a currently selected preset.

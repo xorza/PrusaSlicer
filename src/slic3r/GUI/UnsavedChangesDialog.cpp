@@ -1427,10 +1427,8 @@ DiffPresetDialog::DiffPresetDialog()
     topSizer->SetSizeHints(this);
 }
 
-void DiffPresetDialog::show(Preset::Type type /* = Preset::TYPE_INVALID*/)
+void DiffPresetDialog::update_controls_visibility(Preset::Type type /* = Preset::TYPE_INVALID*/)
 {
-    this->SetTitle(type == Preset::TYPE_INVALID ? _L("Compare Presets") : format_wxstr(_L("Compare %1% Presets"), wxGetApp().get_tab(type)->name()));
-   
     for (auto preset_combos : m_preset_combos) {
         Preset::Type cb_type = preset_combos.presets_left->get_type();
         bool show = type != Preset::TYPE_INVALID    ? type == cb_type :
@@ -1443,11 +1441,45 @@ void DiffPresetDialog::show(Preset::Type type /* = Preset::TYPE_INVALID*/)
     }
 
     m_show_all_presets->Show(type != Preset::TYPE_PRINTER);
+}
+
+void DiffPresetDialog::show(Preset::Type type /* = Preset::TYPE_INVALID*/)
+{
+    this->SetTitle(type == Preset::TYPE_INVALID ? _L("Compare Presets") : format_wxstr(_L("Compare %1% Presets"), wxGetApp().get_tab(type)->name()));
+
+    update_controls_visibility(type);
     if (type == Preset::TYPE_INVALID)
         Fit();
 
     update_tree();
     Show();
+}
+
+void DiffPresetDialog::update_presets(Preset::Type type)
+{
+    m_pr_technology = wxGetApp().preset_bundle->printers.get_edited_preset().printer_technology();
+
+    update_controls_visibility(type);
+
+    if (type == Preset::TYPE_INVALID)
+        for (auto preset_combos : m_preset_combos) {
+            if (preset_combos.presets_left->get_type() == Preset::TYPE_PRINTER) {
+                const std::string& preset_name = wxGetApp().preset_bundle->printers.get_edited_preset().name;
+                preset_combos.presets_left->update(preset_name);
+                preset_combos.presets_right->update(preset_name);
+                break;
+            }
+        }
+    else 
+        for (auto preset_combos : m_preset_combos) {
+            if (preset_combos.presets_left->get_type() == type) {
+                preset_combos.presets_left->update();
+                preset_combos.presets_right->update();
+                break;
+            }
+        }
+
+    update_tree();
 }
 
 void DiffPresetDialog::update_tree()
