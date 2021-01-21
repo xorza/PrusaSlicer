@@ -1409,13 +1409,14 @@ DiffPresetDialog::DiffPresetDialog()
         auto add_preset_combobox = [collection, sizer, new_type, em, this](PresetComboBox** cb) {
             *cb = new PresetComboBox(this, new_type, wxSize(em * 35, -1));
             (*cb)->set_selection_changed_function([this](int) { update_tree(); });
-            (*cb)->update(collection->get_selected_preset().name);
+            if (collection->get_selected_idx() != (size_t)-1)
+                (*cb)->update(collection->get_selected_preset().name);
 
             sizer->Add(*cb, 1);
             (*cb)->Show(new_type == Preset::TYPE_PRINTER);
         };
         add_preset_combobox(&presets_left);
-        sizer->Add(equal_bmp, 0, wxRIGHT | wxLEFT, 5);
+        sizer->Add(equal_bmp, 0, wxRIGHT | wxLEFT | wxALIGN_CENTER_VERTICAL, 5);
         add_preset_combobox(&presets_right);
         presets_sizer->Add(sizer, 1, wxTOP, 5);
         equal_bmp->Show(new_type == Preset::TYPE_PRINTER);
@@ -1469,6 +1470,13 @@ void DiffPresetDialog::update_controls_visibility(Preset::Type type /* = Preset:
         preset_combos.presets_left->Show(show);
         preset_combos.equal_bmp->Show(show);
         preset_combos.presets_right->Show(show);
+
+        if (show && preset_combos.presets_left->GetSelection() < 0) {
+            auto collection = get_preset_collection(cb_type);
+            const std::string& name = collection->get_selected_preset().name;
+            preset_combos.presets_left->update(name);
+            preset_combos.presets_right->update(name);
+        }
     }
 
     m_show_all_presets->Show(type != Preset::TYPE_PRINTER);
@@ -1483,6 +1491,10 @@ void DiffPresetDialog::show(Preset::Type type /* = Preset::TYPE_INVALID*/)
         Fit();
 
     update_tree();
+
+    // if this dialog is shown it have to be Hide and show again to be placed on the very Top of windows
+    if (IsShown())
+        Hide();
     Show();
 }
 
