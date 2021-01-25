@@ -116,12 +116,13 @@ public:
     };
 
     Preset(Type type, const std::string &name, bool is_default = false) : type(type), is_default(is_default), name(name) {}
+    Preset(){}
 
     Type                type        = TYPE_INVALID;
 
     // The preset represents a "default" set of properties,
     // pulled from the default values of the PrintConfig (see PrintConfigDef for their definitions).
-    bool                is_default;
+    bool                is_default = false;
     // External preset points to a configuration, which has been loaded but not imported
     // into the Slic3r default configuration location.
     bool                is_external = false;
@@ -256,6 +257,9 @@ class PresetCollection
 public:
     // Initialize the PresetCollection with the "- default -" preset.
     PresetCollection(Preset::Type type, const std::vector<std::string> &keys, const Slic3r::StaticPrintConfig &defaults, const std::string &default_name = "- default -");
+    PresetCollection() {}
+    PresetCollection(const PresetCollection& other);
+    PresetCollection& operator=(const PresetCollection& other);
     ~PresetCollection();
 
     typedef std::deque<Preset>::iterator Iterator;
@@ -474,9 +478,9 @@ protected:
     void 			update_map_system_profile_renamed();
 
 private:
-    PresetCollection();
-    PresetCollection(const PresetCollection &other);
-    PresetCollection& operator=(const PresetCollection &other);
+    //PresetCollection();
+    //PresetCollection(const PresetCollection &other);
+    //PresetCollection& operator=(const PresetCollection &other);
 
     // Find a preset position in the sorted list of presets.
     // The "-- default -- " preset is always the first, so it needs
@@ -542,6 +546,7 @@ class PrinterPresetCollection : public PresetCollection
 public:
     PrinterPresetCollection(Preset::Type type, const std::vector<std::string> &keys, const Slic3r::StaticPrintConfig &defaults, const std::string &default_name = "- default -") :
 		PresetCollection(type, keys, defaults, default_name) {}
+    PrinterPresetCollection() : PresetCollection() {}
     const Preset&   default_preset_for(const DynamicPrintConfig &config) const override;
 
     const Preset*   find_by_model_id(const std::string &model_id) const;
@@ -634,6 +639,9 @@ class PhysicalPrinterCollection
 {
 public:
     PhysicalPrinterCollection(const std::vector<std::string>& keys);
+    PhysicalPrinterCollection() {}
+    PhysicalPrinterCollection(const PhysicalPrinterCollection& other);
+    PhysicalPrinterCollection& operator=(const PhysicalPrinterCollection& other);
     ~PhysicalPrinterCollection() {}
 
     typedef std::deque<PhysicalPrinter>::iterator Iterator;
@@ -725,7 +733,7 @@ public:
     const DynamicPrintConfig& default_config() const { return m_default_config; }
 
 private:
-    PhysicalPrinterCollection& operator=(const PhysicalPrinterCollection& other);
+//    PhysicalPrinterCollection& operator=(const PhysicalPrinterCollection& other);
 
     // Find a physical printer position in the sorted list of printers.
     // The name of a printer should be unique and case insensitive

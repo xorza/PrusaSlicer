@@ -690,6 +690,15 @@ void DiffViewCtrl::context_menu(wxDataViewEvent& event)
     if (it == m_items_map.end() || !it->second.is_long)
         return;
     FullCompareDialog(it->second.opt_name, it->second.old_val, it->second.new_val).ShowModal();
+
+#ifdef __WXOSX__
+    wxWindow* parent = this->GetParent();
+    if (parent && parent->IsShown()) {
+        // if this dialog is shown it have to be Hide and show again to be placed on the very Top of windows
+        parent->Hide();
+        parent->Show();
+    }
+#endif // __WXOSX__
 }
 
 void DiffViewCtrl::item_value_changed(wxDataViewEvent& event)
@@ -1356,12 +1365,14 @@ FullCompareDialog::FullCompareDialog(const wxString& option_name, const wxString
 }
 
 
-static const PresetCollection* get_preset_collection(Preset::Type type_) {
-    return  type_ == Preset::Type::TYPE_PRINT        ? &wxGetApp().preset_bundle->prints :
-            type_ == Preset::Type::TYPE_SLA_PRINT    ? &wxGetApp().preset_bundle->sla_prints :
-            type_ == Preset::Type::TYPE_FILAMENT     ? &wxGetApp().preset_bundle->filaments :
-            type_ == Preset::Type::TYPE_SLA_MATERIAL ? &wxGetApp().preset_bundle->sla_materials :
-            type_ == Preset::Type::TYPE_PRINTER      ? &wxGetApp().preset_bundle->printers :
+static PresetCollection* get_preset_collection(Preset::Type type, PresetBundle* preset_bundle = nullptr) {
+    if (!preset_bundle)
+        preset_bundle = wxGetApp().preset_bundle;
+    return  type == Preset::Type::TYPE_PRINT        ? &preset_bundle->prints :
+            type == Preset::Type::TYPE_SLA_PRINT    ? &preset_bundle->sla_prints :
+            type == Preset::Type::TYPE_FILAMENT     ? &preset_bundle->filaments :
+            type == Preset::Type::TYPE_SLA_MATERIAL ? &preset_bundle->sla_materials :
+            type == Preset::Type::TYPE_PRINTER      ? &preset_bundle->printers :
             nullptr;
 }
 
@@ -1390,6 +1401,15 @@ DiffPresetDialog::DiffPresetDialog()
     int border = 10;
     int em = em_unit();
 
+    assert(wxGetApp().preset_bundle);
+
+    size_t pb_size = sizeof(PresetBundle);
+    m_preset_bundle_left = std::make_unique<PresetBundle>();
+    *m_preset_bundle_left = *wxGetApp().preset_bundle;
+
+    m_preset_bundle_right = std::make_unique<PresetBundle>();
+    *m_preset_bundle_right = *wxGetApp().preset_bundle;
+
     m_top_info_line = new wxStaticText(this, wxID_ANY, "Select presets to compare");
     m_top_info_line->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT).Bold());
 
@@ -1406,25 +1426,35 @@ DiffPresetDialog::DiffPresetDialog()
         PresetComboBox* presets_right;
         ScalableButton* equal_bmp = new ScalableButton(this, wxID_ANY, "equal");
 
-        auto add_preset_combobox = [collection, sizer, new_type, em, this](PresetComboBox** cb) {
-            *cb = new PresetComboBox(this, new_type, wxSize(em * 35, -1));
-            (*cb)->set_selection_changed_function([this](int) { update_tree(); });
+        auto add_preset_combobox = [collection, sizer, new_type, em, this](PresetComboBox** cb_, PresetBundle* preset_bundle) {
+            *cb_ = new PresetComboBox(this, new_type, wxSize(em * 35, -1), preset_bundle);
+            PresetComboBox* cb = (*cb_);
+            cb->set_selection_changed_function([this, new_type, preset_bundle, cb](int selection) {
+                if (m_view_type == Preset::TYPE_INVALID) {
+                    std::string preset_name = cb->GetString(selection).ToUTF8().data();
+                    update_compatibility(Preset::remove_suffix_modified(preset_name), new_type, preset_bundle);
+                }
+                update_tree(); 
+            });
             if (collection->get_selected_idx() != (size_t)-1)
-                (*cb)->update(collection->get_selected_preset().name);
+                cb->update(collection->get_selected_preset().name);
 
-            sizer->Add(*cb, 1);
-            (*cb)->Show(new_type == Preset::TYPE_PRINTER);
+            sizer->Add(cb, 1);
+            cb->Show(new_type == Preset::TYPE_PRINTER);
         };
-        add_preset_combobox(&presets_left);
+        add_preset_combobox(&presets_left, m_preset_bundle_left.get());
         sizer->Add(equal_bmp, 0, wxRIGHT | wxLEFT | wxALIGN_CENTER_VERTICAL, 5);
-        add_preset_combobox(&presets_right);
+        add_preset_combobox(&presets_right, m_preset_bundle_right.get());
         presets_sizer->Add(sizer, 1, wxTOP, 5);
         equal_bmp->Show(new_type == Preset::TYPE_PRINTER);
 
         m_preset_combos.push_back({ presets_left, equal_bmp, presets_right });
 
         equal_bmp->Bind(wxEVT_BUTTON, [presets_left, presets_right, this](wxEvent&) {
-            presets_right->update(get_selection(presets_left));
+            std::string preset_name = get_selection(presets_left);
+            presets_right->update(preset_name); 
+            if (m_view_type == Preset::TYPE_INVALID)
+                update_compatibility(Preset::remove_suffix_modified(preset_name), presets_right->get_type(), m_preset_bundle_right.get());
             update_tree();
         });
     }
@@ -1438,6 +1468,8 @@ DiffPresetDialog::DiffPresetDialog()
             preset_combos.presets_left->show_all(show_all);
             preset_combos.presets_right->show_all(show_all);
         }
+        if (m_view_type == Preset::TYPE_INVALID)
+            update_tree();
     });
 
     m_tree = new DiffViewCtrl(this, wxSize(em * 65, em * 40));
@@ -1471,21 +1503,27 @@ void DiffPresetDialog::update_controls_visibility(Preset::Type type /* = Preset:
         preset_combos.equal_bmp->Show(show);
         preset_combos.presets_right->Show(show);
 
-        if (show && preset_combos.presets_left->GetSelection() < 0) {
-            auto collection = get_preset_collection(cb_type);
-            const std::string& name = collection->get_selected_preset().name;
-            preset_combos.presets_left->update(name);
-            preset_combos.presets_right->update(name);
+        if (show) {
+            preset_combos.presets_left->update_from_bundle();
+            preset_combos.presets_right->update_from_bundle();
         }
     }
 
     m_show_all_presets->Show(type != Preset::TYPE_PRINTER);
 }
 
+void DiffPresetDialog::update_bundles_from_app()
+{
+    *m_preset_bundle_left  = *wxGetApp().preset_bundle;
+    *m_preset_bundle_right = *wxGetApp().preset_bundle;
+}
+
 void DiffPresetDialog::show(Preset::Type type /* = Preset::TYPE_INVALID*/)
 {
     this->SetTitle(type == Preset::TYPE_INVALID ? _L("Compare Presets") : format_wxstr(_L("Compare %1% Presets"), wxGetApp().get_tab(type)->name()));
+    m_view_type = type;
 
+    update_bundles_from_app();
     update_controls_visibility(type);
     if (type == Preset::TYPE_INVALID)
         Fit();
@@ -1500,16 +1538,16 @@ void DiffPresetDialog::show(Preset::Type type /* = Preset::TYPE_INVALID*/)
 
 void DiffPresetDialog::update_presets(Preset::Type type)
 {
-    m_pr_technology = wxGetApp().preset_bundle->printers.get_edited_preset().printer_technology();
+    m_pr_technology = m_preset_bundle_left.get()->printers.get_edited_preset().printer_technology();
 
+    update_bundles_from_app();
     update_controls_visibility(type);
 
     if (type == Preset::TYPE_INVALID)
         for (auto preset_combos : m_preset_combos) {
             if (preset_combos.presets_left->get_type() == Preset::TYPE_PRINTER) {
-                const std::string& preset_name = wxGetApp().preset_bundle->printers.get_edited_preset().name;
-                preset_combos.presets_left->update(preset_name);
-                preset_combos.presets_right->update(preset_name);
+                preset_combos.presets_left->update_from_bundle ();
+                preset_combos.presets_right->update_from_bundle();
                 break;
             }
         }
@@ -1654,6 +1692,61 @@ void DiffPresetDialog::on_sys_color_changed()
     Refresh();
 }
 
+void DiffPresetDialog::update_compatibility(const std::string& preset_name, Preset::Type type, PresetBundle* preset_bundle)
+{
+    PresetCollection* presets = get_preset_collection(type, preset_bundle);
+
+    bool print_tab = type == Preset::TYPE_PRINT || type == Preset::TYPE_SLA_PRINT;
+    bool printer_tab = type == Preset::TYPE_PRINTER;
+    bool technology_changed = false;
+
+    if (printer_tab) {
+        const Preset& new_printer_preset = *presets->find_preset(preset_name, true);
+        const PresetWithVendorProfile new_printer_preset_with_vendor_profile = presets->get_preset_with_vendor_profile(new_printer_preset);
+        PrinterTechnology    old_printer_technology = presets->get_selected_preset().printer_technology();
+        PrinterTechnology    new_printer_technology = new_printer_preset.printer_technology();
+
+        technology_changed = old_printer_technology != new_printer_technology;
+    }
+
+    bool is_selected = presets->select_preset_by_name(preset_name, false);
+
+    // Mark the print & filament enabled if they are compatible with the currently selected preset.
+    // The following method should not discard changes of current print or filament presets on change of a printer profile,
+    // if they are compatible with the current printer.
+    auto update_compatible_type = [](bool technology_changed, bool on_page, bool show_incompatible_presets) {
+        return  technology_changed ? PresetSelectCompatibleType::Always :
+            on_page ? PresetSelectCompatibleType::Never :
+            show_incompatible_presets ? PresetSelectCompatibleType::OnlyIfWasCompatible : PresetSelectCompatibleType::Always;
+    };
+    if (print_tab || printer_tab)
+        preset_bundle->update_compatible(
+            update_compatible_type(technology_changed, print_tab, true),
+            update_compatible_type(technology_changed, false, true));
+
+    bool is_left_presets = preset_bundle == m_preset_bundle_left.get();
+    PrinterTechnology pr_tech = preset_bundle->printers.get_selected_preset().printer_technology();
+
+    // update preset comboboxes
+    for (auto preset_combos : m_preset_combos)
+    {
+        PresetComboBox* cb = is_left_presets ? preset_combos.presets_left : preset_combos.presets_right;
+        Preset::Type presets_type = cb->get_type();
+        if (print_tab && (pr_tech == ptFFF && presets_type == Preset::TYPE_FILAMENT ||
+            pr_tech == ptSLA && presets_type == Preset::TYPE_SLA_MATERIAL) ||
+            printer_tab && (pr_tech == ptFFF && (presets_type == Preset::TYPE_PRINT || presets_type == Preset::TYPE_FILAMENT) ||
+                pr_tech == ptSLA && (presets_type == Preset::TYPE_SLA_PRINT || presets_type == Preset::TYPE_SLA_MATERIAL)))
+            cb->update();
+    }
+
+    if (technology_changed &&
+        m_preset_bundle_left.get()->printers.get_selected_preset().printer_technology() ==
+        m_preset_bundle_right.get()->printers.get_selected_preset().printer_technology())
+    {
+        m_pr_technology = m_preset_bundle_left.get()->printers.get_edited_preset().printer_technology();
+        update_controls_visibility();
+    }
+}
 
 }
 

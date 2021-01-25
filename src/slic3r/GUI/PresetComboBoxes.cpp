@@ -62,12 +62,12 @@ namespace GUI {
  * control size calculation methods (virtual) are overridden.
  **/
 
-PresetComboBox::PresetComboBox(wxWindow* parent, Preset::Type preset_type, const wxSize& size) :
+PresetComboBox::PresetComboBox(wxWindow* parent, Preset::Type preset_type, const wxSize& size, PresetBundle* preset_bundle/* = nullptr*/) :
     wxBitmapComboBox(parent, wxID_ANY, wxEmptyString, wxDefaultPosition, size, 0, nullptr, wxCB_READONLY),
     m_type(preset_type),
     m_last_selected(wxNOT_FOUND),
     m_em_unit(em_unit(this)),
-    m_preset_bundle(wxGetApp().preset_bundle)
+    m_preset_bundle(preset_bundle ? preset_bundle : wxGetApp().preset_bundle)
 {
     SetFont(wxGetApp().normal_font());
 #ifdef _WIN32
@@ -353,6 +353,11 @@ void PresetComboBox::show_all(bool show_all)
 void PresetComboBox::update()
 {
     this->update(into_u8(this->GetString(this->GetSelection())));
+}
+
+void PresetComboBox::update_from_bundle()
+{
+    this->update(m_collection->get_selected_preset().name);
 }
 
 void PresetComboBox::msw_rescale()

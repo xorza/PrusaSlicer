@@ -32,7 +32,7 @@ class PresetComboBox : public wxBitmapComboBox
 {
     bool m_show_all { false };
 public:
-    PresetComboBox(wxWindow* parent, Preset::Type preset_type, const wxSize& size = wxDefaultSize);
+    PresetComboBox(wxWindow* parent, Preset::Type preset_type, const wxSize& size = wxDefaultSize, PresetBundle* preset_bundle = nullptr);
     ~PresetComboBox();
 
 	enum LabelItemType {
@@ -59,6 +59,8 @@ public:
     bool selection_is_changed_according_to_physical_printers();
 
     void update(std::string select_preset);
+    // select preset which is selected in PreseBundle
+    void update_from_bundle();
 
     void edit_physical_printer();
     void add_physical_printer();

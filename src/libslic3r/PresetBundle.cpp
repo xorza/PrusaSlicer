@@ -105,6 +105,21 @@ PresetBundle::PresetBundle() :
     this->project_config.apply_only(FullPrintConfig::defaults(), s_project_options);
 }
 
+PresetBundle::PresetBundle(const PresetBundle& src)
+{
+    prints              = src.prints;
+    sla_prints          = src.sla_prints;
+    filaments           = src.filaments;
+    sla_materials       = src.sla_materials;
+    printers            = src.printers;
+    physical_printers   = src.physical_printers;
+
+    filament_presets    = src.filament_presets;
+    project_config      = src.project_config;
+    vendors             = src.vendors;
+    obsolete_presets    = src.obsolete_presets;
+}
+
 PresetBundle::~PresetBundle()
 {
 }

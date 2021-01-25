@@ -15,6 +15,7 @@ class PresetBundle
 {
 public:
     PresetBundle();
+    PresetBundle(const PresetBundle& src);
     ~PresetBundle();
 
     // Remove all the presets but the "-- default --".

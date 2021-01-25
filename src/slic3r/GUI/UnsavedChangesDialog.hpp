@@ -7,7 +7,7 @@
 
 #include "GUI_Utils.hpp"
 #include "wxExtensions.hpp"
-#include "libslic3r/Preset.hpp"
+#include "libslic3r/PresetBundle.hpp"
 
 class ScalableButton;
 class wxStaticText;
@@ -313,10 +313,15 @@ class DiffPresetDialog : public DPIDialog
     wxStaticText*           m_bottom_info_line  { nullptr };
     wxCheckBox*             m_show_all_presets  { nullptr };
 
+    Preset::Type            m_view_type         { Preset::TYPE_INVALID };
     PrinterTechnology       m_pr_technology;
+    std::unique_ptr<PresetBundle>   m_preset_bundle_left;
+    std::unique_ptr<PresetBundle>   m_preset_bundle_right;
 
     void                    update_tree();
+    void                    update_bundles_from_app();
     void                    update_controls_visibility(Preset::Type type = Preset::TYPE_INVALID);
+    void                    update_compatibility(const std::string& preset_name, Preset::Type type, PresetBundle* preset_bundle);
 
     struct DiffPresets
     {
