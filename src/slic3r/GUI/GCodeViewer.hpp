@@ -23,11 +23,55 @@ class GCodeViewer
     using IndexBuffer = std::vector<unsigned int>;
     using MultiIndexBuffer = std::vector<IndexBuffer>;
 
-    static const std::vector<Color> Extrusion_Role_Colors;
-    static const std::vector<Color> Options_Colors;
-    static const std::vector<Color> Travel_Colors;
-    static const Color              Wipe_Color;
-    static const std::vector<Color> Range_Colors;
+    inline static const std::vector<GCodeViewer::Color> Extrusion_Role_Colors {
+        { 0.75f, 0.75f, 0.75f },   // erNone
+        { 1.00f, 0.90f, 0.30f },   // erPerimeter
+        { 1.00f, 0.49f, 0.22f },   // erExternalPerimeter
+        { 0.12f, 0.12f, 1.00f },   // erOverhangPerimeter
+        { 0.69f, 0.19f, 0.16f },   // erInternalInfill
+        { 0.59f, 0.33f, 0.80f },   // erSolidInfill
+        { 0.94f, 0.25f, 0.25f },   // erTopSolidInfill
+        { 1.00f, 0.55f, 0.41f },   // erIroning
+        { 0.30f, 0.50f, 0.73f },   // erBridgeInfill
+        { 1.00f, 1.00f, 1.00f },   // erGapFill
+        { 0.00f, 0.53f, 0.43f },   // erSkirt
+        { 0.00f, 1.00f, 0.00f },   // erSupportMaterial
+        { 0.00f, 0.50f, 0.00f },   // erSupportMaterialInterface
+        { 0.70f, 0.89f, 0.67f },   // erWipeTower
+        { 0.37f, 0.82f, 0.58f },   // erCustom
+        { 0.00f, 0.00f, 0.00f }    // erMixed
+    };
+
+    inline static const std::vector<GCodeViewer::Color> Options_Colors = {
+        { 0.803f, 0.135f, 0.839f },   // Retractions
+        { 0.287f, 0.679f, 0.810f },   // Unretractions
+        { 0.758f, 0.744f, 0.389f },   // ToolChanges
+        { 0.856f, 0.582f, 0.546f },   // ColorChanges
+        { 0.322f, 0.942f, 0.512f },   // PausePrints
+        { 0.886f, 0.825f, 0.262f }    // CustomGCodes
+    };
+
+    inline static const std::vector<GCodeViewer::Color> Travel_Colors {
+        { 0.219f, 0.282f, 0.609f }, // Move
+        { 0.112f, 0.422f, 0.103f }, // Extrude
+        { 0.505f, 0.064f, 0.028f }  // Retract
+    };
+
+    inline static const GCodeViewer::Color Wipe_Color = { 1.0f, 1.0f, 0.0f };
+
+    inline static const std::vector<GCodeViewer::Color> Range_Colors {
+        { 0.043f, 0.173f, 0.478f }, // bluish
+        { 0.075f, 0.349f, 0.522f },
+        { 0.110f, 0.533f, 0.569f },
+        { 0.016f, 0.839f, 0.059f },
+        { 0.667f, 0.949f, 0.000f },
+        { 0.988f, 0.975f, 0.012f },
+        { 0.961f, 0.808f, 0.039f },
+        { 0.890f, 0.533f, 0.125f },
+        { 0.820f, 0.408f, 0.188f },
+        { 0.761f, 0.322f, 0.235f },
+        { 0.581f, 0.149f, 0.087f }  // reddish
+    };
 
     enum class EOptionsColors : unsigned char
     {
