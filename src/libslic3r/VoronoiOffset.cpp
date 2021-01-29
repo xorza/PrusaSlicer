@@ -258,7 +258,7 @@ Polygons voronoi_offset(
         assert(new_edge_type == EdgeState::Possible || new_edge_type == EdgeState::Inactive);
         edge_type = new_edge_type;
     };
-    auto                    set_edge_state_final = [&edge_state, front_edge](const size_t edge_id, EdgeState new_edge_type) {
+    auto                    set_edge_state_final = [&edge_state](const size_t edge_id, EdgeState new_edge_type) {
         EdgeState &edge_type = edge_state[edge_id];
         assert(edge_type == EdgeState::Possible || edge_type == new_edge_type);
         assert(new_edge_type == EdgeState::Active || new_edge_type == EdgeState::Inactive);

@@ -123,7 +123,6 @@ const char* VALID_OBJECT_TYPES[] =
     "model"
 };
 
-const unsigned int INVALID_OBJECT_TYPES_COUNT = 4;
 const char* INVALID_OBJECT_TYPES[] =
 {
     "solidsupport",
@@ -2479,7 +2478,7 @@ namespace Slic3r {
 			if (!volume->mesh().has_shared_vertices())
 				throw Slic3r::FileIOError("store_3mf() requires shared vertices");
 
-            volumes_offsets.insert(VolumeToOffsetsMap::value_type(volume, Offsets(vertices_count))).first;
+            volumes_offsets.insert(VolumeToOffsetsMap::value_type(volume, Offsets(vertices_count)));
 
             const indexed_triangle_set &its = volume->mesh().its;
             if (its.vertices.empty())
