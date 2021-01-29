@@ -1,7 +1,7 @@
 
 option(SLIC3R_ENC_CHECK "Verify encoding of source files" 1)
 
-if (SLIC3R_ENC_CHECK)
+if (SLIC3R_ENC_CHECK AND NOT IS_CROSS_COMPILE)
     add_executable(encoding-check encoding-check.cpp)
 
     # A global no-op target which depends on all encodings checks,
@@ -18,8 +18,8 @@ endif()
 # Function that adds source file encoding check to a target
 # using the above encoding-check binary
 
-function(encoding_check TARGET)
-    if (SLIC3R_ENC_CHECK)
+if (SLIC3R_ENC_CHECK AND NOT IS_CROSS_COMPILE)
+    function(encoding_check TARGET)
         # Obtain target source files
         get_target_property(T_SOURCES ${TARGET} SOURCES)
 
@@ -41,5 +41,8 @@ function(encoding_check TARGET)
         # via the global-encoding-check
         add_dependencies(global-encoding-check encoding-check-${TARGET})
         add_dependencies(${TARGET} global-encoding-check)
-    endif()
-endfunction()
+    endfunction()
+else ()
+    function(encoding_check TARGET)
+    endfunction()
+endif()
