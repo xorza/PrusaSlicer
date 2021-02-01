@@ -2413,27 +2413,13 @@ void GLCanvas3D::on_idle(wxIdleEvent& evt)
 {
     if (!m_initialized)
         return;
-#if ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
-    /*NotificationManager* notification_mgr = wxGetApp().plater()->get_notification_manager();
-    if (notification_mgr->requires_update())
-        notification_mgr->update_notifications();
 
-    m_dirty |= notification_mgr->requires_render();*/
-#endif // ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
-    // FIXME
     m_dirty |= m_main_toolbar.update_items_state();
     m_dirty |= m_undoredo_toolbar.update_items_state();
     m_dirty |= wxGetApp().plater()->get_view_toolbar().update_items_state();
     m_dirty |= wxGetApp().plater()->get_collapse_toolbar().update_items_state();
     bool mouse3d_controller_applied = wxGetApp().plater()->get_mouse3d_controller().apply(wxGetApp().plater()->get_camera());
     m_dirty |= mouse3d_controller_applied;
-
-#if ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
-    /*
-    if (notification_mgr->requires_update()) {
-        evt.RequestMore();
-    }*/
-#endif // ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
 
     if (!m_dirty)
         return;
@@ -2985,27 +2971,44 @@ void GLCanvas3D::on_timer(wxTimerEvent& evt)
 
 void GLCanvas3D::on_render_timer(wxTimerEvent& evt)
 {
-    // If slicer is not top window -> restart timer with one second to try again
+    /*
+    // If slicer is not top window leave, render will come after its focused again
     wxWindow* p = dynamic_cast<wxWindow*>(wxGetApp().plater());
     while (p->GetParent() != nullptr)
         p = p->GetParent();
     wxTopLevelWindow* top_level_wnd = dynamic_cast<wxTopLevelWindow*>(p);
     if (!top_level_wnd->IsActive()) {
-        request_extra_frame_delayed(1000);
+        //schedule_extra_frame(1000);
         return;
     }
-    //render();
+    */
     m_dirty = true;
     wxWakeUpIdle();
 }
 
-void GLCanvas3D::request_extra_frame_delayed(int miliseconds)
+
+void GLCanvas3D::schedule_extra_frame(int miliseconds)
 {
+    // Schedule idle event right now
+    if (miliseconds == 0)
+    {
+        // We want to wakeup idle evnt but most likely this is call inside render cycle so we need to wait
+        if (m_in_render)
+            miliseconds = 33;
+        else {
+            m_dirty = true;
+            wxWakeUpIdle();
+            return;
+        }
+    } 
+    // Start timer
     int64_t now = timestamp_now();
+    // Timer is not running
     if (! m_render_timer.IsRunning()) {
         m_extra_frame_requested_delayed = miliseconds;
         m_render_timer.StartOnce(miliseconds);
         m_render_timer_start = now;
+    // Timer is running - restart only if new period is shorter than remaning period
     } else {
         const int64_t remaining_time = (m_render_timer_start + m_extra_frame_requested_delayed) - now;
         if (miliseconds < remaining_time) {

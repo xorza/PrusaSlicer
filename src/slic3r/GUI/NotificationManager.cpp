@@ -18,14 +18,9 @@
 
 static constexpr float GAP_WIDTH = 10.0f;
 static constexpr float SPACE_RIGHT_PANEL = 10.0f;
-#if ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
 static constexpr float FADING_OUT_DURATION = 2.0f;
 // Time in Miliseconds after next render when fading out is requested
 static constexpr int   FADING_OUT_TIMEOUT = 100;
-// If timeout is changed to higher than 1 second, substract_time call should be revorked
-//static constexpr int   MAX_TIMEOUT_MILISECONDS = 1000; 
-//static constexpr int   MAX_TIMEOUT_SECONDS = 1;
-#endif // ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
 
 namespace Slic3r {
 namespace GUI {
@@ -132,36 +127,33 @@ void NotificationManager::NotificationIDProvider::release_id(int) {}
 NotificationManager::PopNotification::PopNotification(const NotificationData &n, NotificationIDProvider &id_provider, wxEvtHandler* evt_handler) :
 	  m_data                (n)
 	, m_id_provider   		(id_provider)
-	, m_remaining_time      (n.duration)
-	, m_last_remaining_time (n.duration)
-	, m_counting_down       (n.duration != 0)
 	, m_text1               (n.text1)
     , m_hypertext           (n.hypertext)
     , m_text2               (n.text2)
 	, m_evt_handler         (evt_handler)
 	, m_notification_start  (GLCanvas3D::timestamp_now())
-{
-	//init();
-}
-#if ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
+{}
+
 void NotificationManager::PopNotification::render(GLCanvas3D& canvas, float initial_y, bool move_from_overlay, float overlay_width)
 {
-	if (!m_initialized) {
+
+	if (m_state == EState::Unknown) {
 		init();
 	}
 
-	if (m_hidden) {
+	if (m_state == EState::Hidden) {
 		m_top_y = initial_y - GAP_WIDTH;
 		return;
 	}
 
-	if (m_fading_out) 
+	if (m_state == EState::FadingOut) 
 		m_last_render_fading = GLCanvas3D::timestamp_now();
 
-	Size cnv_size = canvas.get_canvas_size();
+	Size          cnv_size = canvas.get_canvas_size();
 	ImGuiWrapper& imgui = *wxGetApp().imgui();
-	ImVec2 mouse_pos = ImGui::GetMousePos();
-	float right_gap = SPACE_RIGHT_PANEL + (move_from_overlay ? overlay_width + m_line_height * 5 : 0);
+	ImVec2        mouse_pos = ImGui::GetMousePos();
+	float         right_gap = SPACE_RIGHT_PANEL + (move_from_overlay ? overlay_width + m_line_height * 5 : 0);
+	bool          fading_pop = false;
 
 	if (m_line_height != ImGui::CalcTextSize("A").y)
 		init();
@@ -176,53 +168,45 @@ void NotificationManager::PopNotification::render(GLCanvas3D& canvas, float init
 	imgui.set_next_window_size(m_window_width, m_window_height, ImGuiCond_Always);
 
 	// find if hovered
-	m_hovered = false;
+	if (m_state == EState::Hovered) 
+		m_state = EState::Shown;
+
 	if (mouse_pos.x < win_pos.x && mouse_pos.x > win_pos.x - m_window_width && mouse_pos.y > win_pos.y && mouse_pos.y < win_pos.y + m_window_height) {
 		ImGui::SetNextWindowFocus();
-		m_hovered = true;
+		m_state = EState::Hovered;
 	}
-
+	
 	// color change based on fading out
-	bool fading_pop = false;
-	if (m_fading_out) {
-		Notifications_Internal::push_style_color(ImGuiCol_WindowBg, ImGui::GetStyleColorVec4(ImGuiCol_WindowBg), m_fading_out, m_current_fade_opacity);
-		Notifications_Internal::push_style_color(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_Text), m_fading_out, m_current_fade_opacity);
+	if (m_state == EState::FadingOut) {
+		Notifications_Internal::push_style_color(ImGuiCol_WindowBg, ImGui::GetStyleColorVec4(ImGuiCol_WindowBg), true, m_current_fade_opacity);
+		Notifications_Internal::push_style_color(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_Text), true, m_current_fade_opacity);
 		fading_pop = true;
 	}
-
+	
 	// background color
 	if (m_is_gray) {
 		ImVec4 backcolor(0.7f, 0.7f, 0.7f, 0.5f);
-		Notifications_Internal::push_style_color(ImGuiCol_WindowBg, backcolor, m_fading_out, m_current_fade_opacity);
+		Notifications_Internal::push_style_color(ImGuiCol_WindowBg, backcolor, m_state == EState::FadingOut, m_current_fade_opacity);
 	}
 	else if (m_data.level == NotificationLevel::ErrorNotification) {
 		ImVec4 backcolor = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
 		backcolor.x += 0.3f;
-		Notifications_Internal::push_style_color(ImGuiCol_WindowBg, backcolor, m_fading_out, m_current_fade_opacity);
+		Notifications_Internal::push_style_color(ImGuiCol_WindowBg, backcolor, m_state == EState::FadingOut, m_current_fade_opacity);
 	}
 	else if (m_data.level == NotificationLevel::WarningNotification) {
 		ImVec4 backcolor = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
 		backcolor.x += 0.3f;
 		backcolor.y += 0.15f;
-		Notifications_Internal::push_style_color(ImGuiCol_WindowBg, backcolor, m_fading_out, m_current_fade_opacity);
+		Notifications_Internal::push_style_color(ImGuiCol_WindowBg, backcolor, m_state == EState::FadingOut, m_current_fade_opacity);
 	}
-
-	// name of window - probably indentifies window and is shown so last_end add whitespaces according to id
+	
+	// name of window indentifies window - has to be unique string
 	if (m_id == 0)
 		m_id = m_id_provider.allocate_id();
 	std::string name = "!!Ntfctn" + std::to_string(m_id);
+	
 	if (imgui.begin(name, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar)) {
 		ImVec2 win_size = ImGui::GetWindowSize();
-
-		//FIXME: dont forget to us this for texts
-		//GUI::format(_utf8(L()));
-
-		/*
-		//countdown numbers
-		ImGui::SetCursorPosX(15);
-		ImGui::SetCursorPosY(15);
-		imgui.text(std::to_string(m_remaining_time).c_str());
-		*/
 
 		render_left_sign(imgui);
 		render_text(imgui, win_size.x, win_size.y, win_pos.x, win_pos.y);
@@ -239,142 +223,7 @@ void NotificationManager::PopNotification::render(GLCanvas3D& canvas, float init
 	if (fading_pop)
 		ImGui::PopStyleColor(2);
 }
-#else
-NotificationManager::PopNotification::RenderResult NotificationManager::PopNotification::render(GLCanvas3D& canvas, const float& initial_y, bool move_from_overlay, float overlay_width)
-{
-	if (!m_initialized) {
-		init();
-	}
-	if (m_finished)
-		return RenderResult::Finished;
-	if (m_close_pending) {
-		// request of extra frame will be done in caller function by ret val ClosePending
-		m_finished = true;
-		return RenderResult::ClosePending;
-	}
-	if (m_hidden) {
-		m_top_y = initial_y - GAP_WIDTH;
-		return RenderResult::Static;
-	}
-	RenderResult    ret_val = m_counting_down ? RenderResult::Countdown : RenderResult::Static;
-	Size            cnv_size = canvas.get_canvas_size();
-	ImGuiWrapper&   imgui = *wxGetApp().imgui();
-	bool            shown = true;
-	ImVec2          mouse_pos = ImGui::GetMousePos();
-	float           right_gap = SPACE_RIGHT_PANEL + (move_from_overlay ? overlay_width + m_line_height * 5 : 0);
 
-	if (m_line_height != ImGui::CalcTextSize("A").y)
-		init();
-	
-	set_next_window_size(imgui);
-
-	//top y of window
-	m_top_y = initial_y + m_window_height;
-	//top right position
-
-	ImVec2 win_pos(1.0f * (float)cnv_size.get_width() - right_gap, 1.0f * (float)cnv_size.get_height() - m_top_y);
-	imgui.set_next_window_pos(win_pos.x, win_pos.y, ImGuiCond_Always, 1.0f, 0.0f);
-	imgui.set_next_window_size(m_window_width, m_window_height, ImGuiCond_Always);
-	
-	//find if hovered
-	if (mouse_pos.x < win_pos.x && mouse_pos.x > win_pos.x - m_window_width && mouse_pos.y > win_pos.y&& mouse_pos.y < win_pos.y + m_window_height)
-	{
-		ImGui::SetNextWindowFocus();
-		ret_val = RenderResult::Hovered;
-		//reset fading
-		m_fading_out = false;
-		m_current_fade_opacity = 1.f;
-		m_remaining_time = m_data.duration;
-		m_countdown_frame = 0;
-	}
-
-	if (m_counting_down && m_remaining_time < 0)
-		m_close_pending = true;
-
-	if (m_close_pending) {
-		// request of extra frame will be done in caller function by ret val ClosePending
-		m_finished = true;
-		return RenderResult::ClosePending;
-	}
-
-	// color change based on fading out
-	bool fading_pop = false;
-	if (m_fading_out) {
-		if (!m_paused)
-			m_current_fade_opacity -= 1.f / ((m_fading_time + 1.f) * 60.f);
-		Notifications_Internal::push_style_color(ImGuiCol_WindowBg, ImGui::GetStyleColorVec4(ImGuiCol_WindowBg), m_fading_out, m_current_fade_opacity);
-		Notifications_Internal::push_style_color(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_Text), m_fading_out, m_current_fade_opacity);
-		fading_pop = true;
-	}
-	// background color
-	if (m_is_gray) {
-		ImVec4 backcolor(0.7f, 0.7f, 0.7f, 0.5f);
-		Notifications_Internal::push_style_color(ImGuiCol_WindowBg, backcolor, m_fading_out, m_current_fade_opacity);
-	} else if (m_data.level == NotificationLevel::ErrorNotification) {
-		ImVec4 backcolor = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
-		backcolor.x += 0.3f;
-		Notifications_Internal::push_style_color(ImGuiCol_WindowBg, backcolor, m_fading_out, m_current_fade_opacity);
-	} else if (m_data.level == NotificationLevel::WarningNotification) {
-		ImVec4 backcolor = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
-		backcolor.x += 0.3f;
-		backcolor.y += 0.15f;
-		Notifications_Internal::push_style_color(ImGuiCol_WindowBg, backcolor, m_fading_out, m_current_fade_opacity);
-	}
-
-	//name of window - probably indentifies window and is shown so last_end add whitespaces according to id
-	if (! m_id)
-		m_id = m_id_provider.allocate_id();
-	std::string name;
-	{
-		// Create a unique ImGUI window name. The name may be recycled using a name of an already released notification.
-		char buf[32];
-		sprintf(buf, "!!Ntfctn%d", m_id);
-		name = buf;
-	}
-	if (imgui.begin(name, &shown, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar )) {
-		if (shown) {
-			
-			ImVec2 win_size = ImGui::GetWindowSize();
-			
-			
-			//FIXME: dont forget to us this for texts
-			//GUI::format(_utf8(L()));
-			
-			/*
-			//countdown numbers
-			ImGui::SetCursorPosX(15);
-			ImGui::SetCursorPosY(15);
-			imgui.text(std::to_string(m_remaining_time).c_str());
-			*/
-			if(m_counting_down)
-				render_countdown(imgui, win_size.x, win_size.y, win_pos.x, win_pos.y);
-			render_left_sign(imgui);
-			render_text(imgui, win_size.x, win_size.y, win_pos.x, win_pos.y);
-			render_close_button(imgui, win_size.x, win_size.y, win_pos.x, win_pos.y);
-			m_minimize_b_visible = false;
-			if (m_multiline && m_lines_count > 3)
-				render_minimize_button(imgui, win_pos.x, win_pos.y);
-		} else {
-			// the user clicked on the [X] button ( ImGuiWindowFlags_NoTitleBar means theres no [X] button)
-			m_close_pending = true;
-			canvas.set_as_dirty();
-		}
-	}
-	imgui.end();
-	
-	if (fading_pop) {
-		ImGui::PopStyleColor();
-		ImGui::PopStyleColor();
-	}
-	if (m_is_gray)
-		ImGui::PopStyleColor();
-	else if (m_data.level == NotificationLevel::ErrorNotification)
-		ImGui::PopStyleColor();
-	else if (m_data.level == NotificationLevel::WarningNotification)
-		ImGui::PopStyleColor();
-	return ret_val;
-}
-#endif // ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
 void NotificationManager::PopNotification::count_spaces()
 {
 	//determine line width 
@@ -390,6 +239,7 @@ void NotificationManager::PopNotification::count_spaces()
 	m_window_width_offset = m_left_indentation + m_line_height * 3.f;
 	m_window_width = m_line_height * 25;
 }
+ 
 void NotificationManager::PopNotification::init()
 {
     std::string text          = m_text1 + " " + m_hypertext;
@@ -443,7 +293,7 @@ void NotificationManager::PopNotification::init()
 	}
 	if (m_lines_count == 3)
 		m_multiline = true;
-	m_initialized = true;
+	m_state = EState::Shown;
 }
 void NotificationManager::PopNotification::set_next_window_size(ImGuiWrapper& imgui)
 { 
@@ -560,8 +410,8 @@ void NotificationManager::PopNotification::render_hypertext(ImGuiWrapper& imgui,
 			m_multiline = true;
 			set_next_window_size(imgui);
 		}
-		else {
-			m_close_pending = on_text_click();
+		else if (on_text_click()) {
+			m_state = EState::ClosePending;
 		}
 	}
 	ImGui::PopStyleColor();
@@ -569,12 +419,12 @@ void NotificationManager::PopNotification::render_hypertext(ImGuiWrapper& imgui,
 	ImGui::PopStyleColor();
 
 	//hover color
-	ImVec4 orange_color = ImVec4(.99f, .313f, .0f, 1.0f);//ImGui::GetStyleColorVec4(ImGuiCol_Button);
+	ImVec4 orange_color = ImVec4(.99f, .313f, .0f, 1.0f);
 	if (ImGui::IsItemHovered(ImGuiHoveredFlags_RectOnly))
 		orange_color.y += 0.2f;
 
 	//text
-	Notifications_Internal::push_style_color(ImGuiCol_Text, orange_color, m_fading_out, m_current_fade_opacity);
+	Notifications_Internal::push_style_color(ImGuiCol_Text, orange_color, m_state == EState::FadingOut, m_current_fade_opacity);
 	ImGui::SetCursorPosX(text_x);
 	ImGui::SetCursorPosY(text_y);
 	imgui.text(text.c_str());
@@ -585,7 +435,7 @@ void NotificationManager::PopNotification::render_hypertext(ImGuiWrapper& imgui,
 	lineEnd.y -= 2;
 	ImVec2 lineStart = lineEnd;
 	lineStart.x = ImGui::GetItemRectMin().x;
-	ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, IM_COL32((int)(orange_color.x * 255), (int)(orange_color.y * 255), (int)(orange_color.z * 255), (int)(orange_color.w * 255.f * (m_fading_out ? m_current_fade_opacity : 1.f))));
+	ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, IM_COL32((int)(orange_color.x * 255), (int)(orange_color.y * 255), (int)(orange_color.z * 255), (int)(orange_color.w * 255.f * (m_state == EState::FadingOut ? m_current_fade_opacity : 1.f))));
 
 }
 
@@ -595,12 +445,11 @@ void NotificationManager::PopNotification::render_close_button(ImGuiWrapper& img
 	ImVec2 win_pos(win_pos_x, win_pos_y); 
 	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
 	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
-	Notifications_Internal::push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_fading_out, m_current_fade_opacity);
-	Notifications_Internal::push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_fading_out, m_current_fade_opacity);
+	Notifications_Internal::push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
+	Notifications_Internal::push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
 	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
 
 
-	//button - if part if treggered
 	std::string button_text;
 	button_text = ImGui::CloseNotifButton;
 	
@@ -616,7 +465,7 @@ void NotificationManager::PopNotification::render_close_button(ImGuiWrapper& img
 	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
 	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
 	{
-		m_close_pending = true;
+		m_state = EState::ClosePending;
 	}
 
 	//invisible large button
@@ -624,7 +473,7 @@ void NotificationManager::PopNotification::render_close_button(ImGuiWrapper& img
 	ImGui::SetCursorPosY(0);
 	if (imgui.button(" ", m_line_height * 2.125, win_size.y - ( m_minimize_b_visible ? 2 * m_line_height : 0)))
 	{
-		m_close_pending = true;
+		m_state = EState::ClosePending;
 	}
 	ImGui::PopStyleColor();
 	ImGui::PopStyleColor();
@@ -632,55 +481,7 @@ void NotificationManager::PopNotification::render_close_button(ImGuiWrapper& img
 	ImGui::PopStyleColor();
 	ImGui::PopStyleColor();
 }
-#if !ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
-void NotificationManager::PopNotification::render_countdown(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
-{
-	/*
-	ImVec2 win_size(win_size_x, win_size_y);
-	ImVec2 win_pos(win_pos_x, win_pos_y);
-	
-	//countdown dots
-	std::string dot_text;
-	dot_text = m_remaining_time <= (float)m_data.duration / 4 * 3 ? ImGui::TimerDotEmptyMarker : ImGui::TimerDotMarker;
-	ImGui::SetCursorPosX(win_size.x - m_line_height);
-	//ImGui::SetCursorPosY(win_size.y / 2 - 24);
-	ImGui::SetCursorPosY(0);
-	imgui.text(dot_text.c_str());
 
-	dot_text = m_remaining_time < m_data.duration / 2 ? ImGui::TimerDotEmptyMarker : ImGui::TimerDotMarker;
-	ImGui::SetCursorPosX(win_size.x - m_line_height);
-	//ImGui::SetCursorPosY(win_size.y / 2 - 9);
-	ImGui::SetCursorPosY(win_size.y / 2 - m_line_height / 2);
-	imgui.text(dot_text.c_str());
-
-	dot_text = m_remaining_time <= m_data.duration / 4 ? ImGui::TimerDotEmptyMarker : ImGui::TimerDotMarker;
-	ImGui::SetCursorPosX(win_size.x - m_line_height);
-	//ImGui::SetCursorPosY(win_size.y / 2 + 6);
-	ImGui::SetCursorPosY(win_size.y - m_line_height);
-	imgui.text(dot_text.c_str());
-	*/
-	if (!m_fading_out && m_remaining_time <= m_data.duration / 4) {
-		m_fading_out = true;
-		m_fading_time = m_remaining_time;
-	}
-	
-	if (m_last_remaining_time != m_remaining_time) {
-		m_last_remaining_time = m_remaining_time;
-		m_countdown_frame = 0;
-	}
-	/*
-	//countdown line
-	ImVec4 orange_color = ImGui::GetStyleColorVec4(ImGuiCol_Button);
-	float  invisible_length = ((float)(m_data.duration - m_remaining_time) / (float)m_data.duration * win_size_x);
-	invisible_length -= win_size_x / ((float)m_data.duration * 60.f) * (60 - m_countdown_frame);
-	ImVec2 lineEnd = ImVec2(win_pos_x - invisible_length, win_pos_y + win_size_y - 5);
-	ImVec2 lineStart = ImVec2(win_pos_x - win_size_x, win_pos_y + win_size_y - 5);
-	ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, IM_COL32((int)(orange_color.x * 255), (int)(orange_color.y * 255), (int)(orange_color.z * 255), (int)(orange_color.picture_width * 255.f * (m_fading_out ? m_current_fade_opacity : 1.f))), 2.f);
-	if (!m_paused)
-		m_countdown_frame++;
-		*/
-}
-#endif // !ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
 void NotificationManager::PopNotification::render_left_sign(ImGuiWrapper& imgui)
 {
 	if (m_data.level == NotificationLevel::ErrorNotification || m_data.level == NotificationLevel::WarningNotification) {
@@ -695,9 +496,9 @@ void NotificationManager::PopNotification::render_minimize_button(ImGuiWrapper& 
 {
 	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
 	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
-	Notifications_Internal::push_style_color(ImGuiCol_ButtonActive, ImGui::GetStyleColorVec4(ImGuiCol_WindowBg), m_fading_out, m_current_fade_opacity);
-	Notifications_Internal::push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_fading_out, m_current_fade_opacity);
-	Notifications_Internal::push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_fading_out, m_current_fade_opacity);
+	Notifications_Internal::push_style_color(ImGuiCol_ButtonActive, ImGui::GetStyleColorVec4(ImGuiCol_WindowBg), m_state == EState::FadingOut, m_current_fade_opacity);
+	Notifications_Internal::push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
+	Notifications_Internal::push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
 
 	
 	//button - if part if treggered
@@ -749,74 +550,59 @@ bool NotificationManager::PopNotification::compare_text(const std::string& text)
 	return false;
 }
 
-#if ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
-void NotificationManager::PopNotification::update_state()
+void NotificationManager::PopNotification::update_state(bool paused)
 {
-	if (!m_initialized)
+	if (m_state == EState::Unknown)
 		init();
 
 	m_next_render = std::numeric_limits<int64_t>::max();
 
-	if (m_hidden) {
-		m_state = EState::Hidden;
+	if (m_state == EState::Hidden) {
 		return;
 	}
 
 	int64_t now = GLCanvas3D::timestamp_now();
 
-	if (m_hovered) {
-		// reset fading
-		m_fading_out = false;
+	// reset timers - hovered state is set in render 
+	if (m_state == EState::Hovered) { 
 		m_current_fade_opacity = 1.0f;
-		m_remaining_time = m_data.duration;
 		m_notification_start = now;
-	}
-
-	
-
-	if (m_counting_down) {
+	// Timers when not fading
+	} else if (m_data.duration != 0 && !paused) {
 		int64_t up_time = now - m_notification_start;
-
-		if (m_fading_out && m_current_fade_opacity <= 0.0f)
-			m_finished = true;
-		else if (!m_fading_out && /*m_remaining_time <=0*/up_time >= m_data.duration * 1000) {
-			m_fading_out = true;
-			m_fading_start = now;
-			m_last_render_fading = now;
-		} else if (!m_fading_out) {
-			m_next_render = m_data.duration * 1000 - up_time;//std::min<int64_t>(/*m_data.duration * 1000 - up_time*/m_remaining_time * 1000, MAX_TIMEOUT_MILISECONDS);
-		}
-		
+		if (m_state != EState::FadingOut && up_time >= m_data.duration * 1000) {
+			m_state					= EState::FadingOut;
+			m_fading_start			= now;
+			m_last_render_fading	= now;
+		} else if (m_state != EState::FadingOut) {
+			m_next_render = m_data.duration * 1000 - up_time;
+		}	
 	}
-	
-	if (m_finished) {
+	// Timers when fading
+	if (m_state == EState::FadingOut && !paused) {
+		int64_t curr_time		= now - m_fading_start;
+		int64_t no_render_time	= now - m_last_render_fading;
+		int64_t next_render		= FADING_OUT_TIMEOUT - no_render_time;
+		m_current_fade_opacity	= std::clamp(1.0f - 0.001f * static_cast<float>(curr_time) / FADING_OUT_DURATION, 0.0f, 1.0f);
+		if (m_current_fade_opacity <= 0.0f)
+			m_state = EState::Finished;
+		else if (next_render < 0) 
+			m_next_render = 0;
+		else
+			m_next_render = next_render;
+	}
+
+	if (m_state == EState::Finished) {
+		m_next_render = 0;
+		return;
+	}
+
+	if (m_state == EState::ClosePending) {
 		m_state = EState::Finished;
 		m_next_render = 0;
 		return;
 	}
-	if (m_close_pending) {
-		m_finished = true;
-		m_state = EState::ClosePending;
-		m_next_render = 0;
-		return;
-	}
-	if (m_fading_out) {
-		if (!m_paused) {
-			m_state = EState::FadingOutStatic;
-			int64_t curr_time      = now - m_fading_start;
-			int64_t no_render_time = now - m_last_render_fading;
-			m_current_fade_opacity = std::clamp(1.0f - 0.001f * static_cast<float>(curr_time) / FADING_OUT_DURATION, 0.0f, 1.0f);
-			auto next_render = FADING_OUT_TIMEOUT - no_render_time;
-			if (next_render <= 0) {
-				//m_last_render_fading = GLCanvas3D::timestamp_now();
-				m_state = EState::FadingOutRender;
-				m_next_render = 0;
-			} else 
-				m_next_render = next_render;
-		}
-	}
 }
-#endif // ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
 
 NotificationManager::SlicingCompleteLargeNotification::SlicingCompleteLargeNotification(const NotificationData& n, NotificationIDProvider& id_provider, wxEvtHandler* evt_handler, bool large) :
 	  NotificationManager::PopNotification(n, id_provider, evt_handler)
@@ -859,9 +645,10 @@ void NotificationManager::SlicingCompleteLargeNotification::set_print_info(const
 void NotificationManager::SlicingCompleteLargeNotification::set_large(bool l)
 {
 	m_is_large = l;
-	m_counting_down = !l;
+	//FIXME this information should not be lost (change m_data?)
+//	m_counting_down = !l;
 	m_hypertext = l ? _u8L("Export G-Code.") : std::string();
-	m_hidden = !l;
+	m_state = l ? EState::Shown : EState::Hidden;
 }
 //---------------ExportFinishedNotification-----------
 void NotificationManager::ExportFinishedNotification::count_spaces()
@@ -920,8 +707,8 @@ void NotificationManager::ExportFinishedNotification::render_eject_button(ImGuiW
 	ImVec2 win_pos(win_pos_x, win_pos_y);
 	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
 	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
-	Notifications_Internal::push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_fading_out, m_current_fade_opacity);
-	Notifications_Internal::push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_fading_out, m_current_fade_opacity);
+	Notifications_Internal::push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
+	Notifications_Internal::push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
 	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
 
 	std::string button_text;
@@ -955,7 +742,7 @@ void NotificationManager::ExportFinishedNotification::render_eject_button(ImGuiW
 		assert(m_evt_handler != nullptr);
 		if (m_evt_handler != nullptr)
 			wxPostEvent(m_evt_handler, EjectDriveNotificationClickedEvent(EVT_EJECT_DRIVE_NOTIFICAION_CLICKED));
-		m_close_pending = true;
+		m_state = EState::ClosePending;
 	}
 
 	//invisible large button
@@ -966,7 +753,7 @@ void NotificationManager::ExportFinishedNotification::render_eject_button(ImGuiW
 		assert(m_evt_handler != nullptr);
 		if (m_evt_handler != nullptr)
 			wxPostEvent(m_evt_handler, EjectDriveNotificationClickedEvent(EVT_EJECT_DRIVE_NOTIFICAION_CLICKED));
-		m_close_pending = true;
+		m_state = EState::ClosePending;
 	}
 	ImGui::PopStyleColor();
 	ImGui::PopStyleColor();
@@ -994,22 +781,12 @@ void NotificationManager::ProgressBarNotification::render_text(ImGuiWrapper& img
 void NotificationManager::ProgressBarNotification::render_bar(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
 {
 	ImVec4 orange_color = ImVec4(.99f, .313f, .0f, 1.0f);
-	float  invisible_length = 0;//((float)(m_data.duration - m_remaining_time) / (float)m_data.duration * win_size_x);
-	//invisible_length -= win_size_x / ((float)m_data.duration * 60.f) * (60 - m_countdown_frame);
+	float  invisible_length = 0;
+
 	ImVec2 lineEnd = ImVec2(win_pos_x - invisible_length - m_window_width_offset, win_pos_y + win_size_y/2 + m_line_height / 2);
 	ImVec2 lineStart = ImVec2(win_pos_x - win_size_x + m_left_indentation, win_pos_y + win_size_y/2 + m_line_height / 2);
 	ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, IM_COL32((int)(orange_color.x * 255), (int)(orange_color.y * 255), (int)(orange_color.z * 255), (1.0f * 255.f)), m_line_height * 0.7f);
-	/*
-	//countdown line
-	ImVec4 orange_color = ImGui::GetStyleColorVec4(ImGuiCol_Button);
-	float  invisible_length = ((float)(m_data.duration - m_remaining_time) / (float)m_data.duration * win_size_x);
-	invisible_length -= win_size_x / ((float)m_data.duration * 60.f) * (60 - m_countdown_frame);
-	ImVec2 lineEnd = ImVec2(win_pos_x - invisible_length, win_pos_y + win_size_y - 5);
-	ImVec2 lineStart = ImVec2(win_pos_x - win_size_x, win_pos_y + win_size_y - 5);
-	ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, IM_COL32((int)(orange_color.x * 255), (int)(orange_color.y * 255), (int)(orange_color.z * 255), (int)(orange_color.picture_width * 255.f * (m_fading_out ? m_current_fade_opacity : 1.f))), 2.f);
-	if (!m_paused)
-		m_countdown_frame++;
-		*/
+
 }
 //------NotificationManager--------
 NotificationManager::NotificationManager(wxEvtHandler* evt_handler) :
@@ -1195,7 +972,8 @@ void NotificationManager::set_progress_bar_percentage(const std::string& text, f
 	for (std::unique_ptr<PopNotification>& notification : m_pop_notifications) {
 		if (notification->get_type() == NotificationType::ProgressBar && notification->compare_text(text)) {
 			dynamic_cast<ProgressBarNotification*>(notification.get())->set_percentage(percentage);
-			wxGetApp().plater()->get_current_canvas3D()->request_extra_frame();
+			// FIX ME: this is massive gpu eater (render every frame)
+			wxGetApp().plater()->get_current_canvas3D()->schedule_extra_frame(0);
 			found = true;
 		}
 	}
@@ -1209,11 +987,6 @@ bool NotificationManager::push_notification_data(const NotificationData& notific
 }
 bool NotificationManager::push_notification_data(std::unique_ptr<NotificationManager::PopNotification> notification, int timestamp)
 {
-/*
-#if ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
-	m_requires_update = true;
-#endif // ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
-*/
 	// if timestamped notif, push only new one
 	if (timestamp != 0) {
 		if (m_used_timestamps.find(timestamp) == m_used_timestamps.end()) {
@@ -1227,21 +1000,19 @@ bool NotificationManager::push_notification_data(std::unique_ptr<NotificationMan
 
 	if (this->activate_existing(notification.get())) {
 		m_pop_notifications.back()->update(notification->get_data());
-		canvas.request_extra_frame_delayed(33);
+		canvas.schedule_extra_frame(0);
 		return false;
 	} else {
 		m_pop_notifications.emplace_back(std::move(notification));
-		canvas.request_extra_frame_delayed(33);
+		canvas.schedule_extra_frame(0);
 		return true;
 	}
 }
-#if ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
-void NotificationManager::render_notifications(float overlay_width)
-{
 
+void NotificationManager::render_notifications(GLCanvas3D& canvas, float overlay_width)
+{
 	sort_notifications();
 
-	GLCanvas3D& canvas = *wxGetApp().plater()->get_current_canvas3D();
 	float last_y = 0.0f;
 
 	for (const auto& notification : m_pop_notifications) {
@@ -1252,73 +1023,49 @@ void NotificationManager::render_notifications(float overlay_width)
 		}
 		
 	}
-	update_notifications();
+	update_notifications(canvas);
 }
-#else
-void NotificationManager::render_notifications(float overlay_width)
+
+void NotificationManager::update_notifications(GLCanvas3D& canvas)
 {
-	float    last_x = 0.0f;
-	float    current_height = 0.0f;
-	bool     request_next_frame = false;
-	bool     render_main = false;
-	bool     hovered = false;
-	sort_notifications();
-
-	GLCanvas3D& canvas = *wxGetApp().plater()->get_current_canvas3D();
-
-	// iterate thru notifications and render them / erase them
-	for (auto it = m_pop_notifications.begin(); it != m_pop_notifications.end();) { 
-		if ((*it)->is_finished()) {
-			it = m_pop_notifications.erase(it);
-		} else {
-			(*it)->set_paused(m_hovered);
-			PopNotification::RenderResult res = (*it)->render(canvas, last_x, m_move_from_overlay && !m_in_preview, overlay_width);
-			if (res != PopNotification::RenderResult::Finished) {
-				last_x = (*it)->get_top() + GAP_WIDTH;
-				current_height = std::max(current_height, (*it)->get_current_top());
-				render_main = true;
-			}
-			if (res == PopNotification::RenderResult::Countdown || res == PopNotification::RenderResult::ClosePending || res == PopNotification::RenderResult::Finished)
-				request_next_frame = true;
-			if (res == PopNotification::RenderResult::Hovered)
-				hovered = true;
-			++it;
-		}
-	}
-	m_hovered = hovered;
-
-	//actualizate timers and request frame if needed
-	wxWindow* p = dynamic_cast<wxWindow*> (wxGetApp().plater());
-	while (p->GetParent())
+	/*
+	// no update if not top window
+	wxWindow* p = dynamic_cast<wxWindow*>(wxGetApp().plater());
+	while (p->GetParent() != nullptr)
 		p = p->GetParent();
 	wxTopLevelWindow* top_level_wnd = dynamic_cast<wxTopLevelWindow*>(p);
 	if (!top_level_wnd->IsActive())
 		return;
+	*/
 
-	{
-		// Control the fade-out.
-		// time in seconds
-		long now = wxGetLocalTime();
-		// Pausing fade-out when the mouse is over some notification.
-		if (!m_hovered && m_last_time < now)
-		{
-			if (now - m_last_time == 1)
-			{
-				for (auto &notification : m_pop_notifications)
-				{
-					notification->substract_remaining_time();
-				}
-			}
-			m_last_time = now;
+	// next_render() returns numeric_limits::max if no need for frame
+	const int64_t max = std::numeric_limits<int64_t>::max();
+	int64_t       next_render = max;
+	// During render, each notification detects if its currently hovered and changes its state to EState::Hovered
+	// If any notification is hovered, all stops its countdown 
+	bool          hover = false;
+	for (const std::unique_ptr<PopNotification>& notification : m_pop_notifications) {
+		if (notification->is_hovered()) {
+			hover = true;
+			break;
 		}
 	}
+	// update state of all notif and erase finished
+	for (auto it = m_pop_notifications.begin(); it != m_pop_notifications.end();) {
+		std::unique_ptr<PopNotification>& notification = *it;
+		notification->update_state(hover);
+		next_render = std::min<int64_t>(next_render, notification->next_render());
+		if (notification->get_state() == PopNotification::EState::Finished)
+			it = m_pop_notifications.erase(it);
+		else 
+			++it;
+	}
 
-	if (request_next_frame)
-		//FIXME this is very expensive for fade-out control.
-		// If any of the notifications is fading out, 100% of the CPU/GPU is consumed.
-		canvas.request_extra_frame();
+	// request next frame if needed
+	if (next_render < max)
+		canvas.schedule_extra_frame(int(next_render));
+
 }
-#endif // ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
 
 void NotificationManager::sort_notifications()
 {
@@ -1369,105 +1116,6 @@ void NotificationManager::set_in_preview(bool preview)
             notification->hide(preview);     
     }
 }
-
-#if ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
-void NotificationManager::update_notifications()
-{
-	// no update if not top window
-	wxWindow* p = dynamic_cast<wxWindow*>(wxGetApp().plater());
-	while (p->GetParent() != nullptr)
-		p = p->GetParent();
-	wxTopLevelWindow* top_level_wnd = dynamic_cast<wxTopLevelWindow*>(p);
-	if (!top_level_wnd->IsActive())
-		return;
-
-	//static size_t last_size = m_pop_notifications.size();
-
-	//request frames
-	int64_t next_render = std::numeric_limits<int64_t>::max();
-	for (auto it = m_pop_notifications.begin(); it != m_pop_notifications.end();) {
-		std::unique_ptr<PopNotification>& notification = *it;
-		notification->set_paused(m_hovered);
-		notification->update_state();
-		next_render = std::min<int64_t>(next_render, notification->next_render());
-		if (notification->get_state() == PopNotification::EState::Finished)
-			it = m_pop_notifications.erase(it);
-		else {
-			
-			++it;
-		}
-	}
-	/*
-	m_requires_update = false;
-	for (const std::unique_ptr<PopNotification>& notification : m_pop_notifications) {
-		if (notification->requires_update()) {
-			m_requires_update = true;
-			break;
-		}
-	}
-	*/
-	// update hovering state
-	m_hovered = false;
-	for (const std::unique_ptr<PopNotification>& notification : m_pop_notifications) {
-		if (notification->is_hovered()) {
-			m_hovered = true;
-			break;
-		}
-	}
-
-	/*
-	// Reuire render if some notification was just deleted.
-	size_t curr_size = m_pop_notifications.size();
-	m_requires_render = m_hovered || (last_size != curr_size);
-	last_size = curr_size;
-
-	// Ask notification if it needs render
-	if (!m_requires_render) {
-		for (const std::unique_ptr<PopNotification>& notification : m_pop_notifications) {
-			if (notification->requires_render()) {
-				m_requires_render = true;
-				break;
-			}
-		}
-	}
-	// Make sure there will be update after last notification erased
-	if (m_requires_render)
-		m_requires_update = true;
-	*/
-	
-
-	if (next_render == 0)
-		wxGetApp().plater()->get_current_canvas3D()->request_extra_frame_delayed(33); //few milliseconds to get from GLCanvas::render
-	else if (next_render < std::numeric_limits<int64_t>::max())
-		wxGetApp().plater()->get_current_canvas3D()->request_extra_frame_delayed(int(next_render));
-
-	/*
-	// actualizate timers
-	wxWindow* p = dynamic_cast<wxWindow*>(wxGetApp().plater());
-	while (p->GetParent() != nullptr)
-		p = p->GetParent();
-	wxTopLevelWindow* top_level_wnd = dynamic_cast<wxTopLevelWindow*>(p);
-	if (!top_level_wnd->IsActive())
-		return;
-
-	{
-		// Control the fade-out.
-		// time in seconds
-		long now = wxGetLocalTime();
-		// Pausing fade-out when the mouse is over some notification.
-		if (!m_hovered && m_last_time < now) {
-			if (now - m_last_time >= MAX_TIMEOUT_SECONDS) {
-				for (auto& notification : m_pop_notifications) {
-					//if (notification->get_state() != PopNotification::EState::Static)
-						notification->substract_remaining_time(MAX_TIMEOUT_SECONDS);
-				}
-				m_last_time = now;
-			}
-		}
-	}
-	*/
-}
-#endif // ENABLE_NEW_NOTIFICATIONS_FADE_OUT 
 
 bool NotificationManager::has_slicing_error_notification()
 {
