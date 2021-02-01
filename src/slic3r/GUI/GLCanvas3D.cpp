@@ -1745,7 +1745,7 @@ void GLCanvas3D::render()
         m_tooltip.render(m_mouse.position, *this);
 
     wxGetApp().plater()->get_mouse3d_controller().render_settings_dialog(*this);
-    wxGetApp().plater()->get_notification_manager()->render_notifications(get_overlay_window_width());
+    wxGetApp().plater()->get_notification_manager()->render_notifications(*this, get_overlay_window_width());
 
     wxGetApp().imgui()->render();
 
@@ -2982,6 +2982,10 @@ void GLCanvas3D::on_render_timer(wxTimerEvent& evt)
         return;
     }
     */
+    if (m_in_render) {
+        schedule_extra_frame(33);
+        return;
+    }
     m_dirty = true;
     wxWakeUpIdle();
 }
