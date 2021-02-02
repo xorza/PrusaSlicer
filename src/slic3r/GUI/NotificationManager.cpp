@@ -1028,7 +1028,7 @@ void NotificationManager::render_notifications(GLCanvas3D& canvas, float overlay
 
 void NotificationManager::update_notifications(GLCanvas3D& canvas)
 {
-	/*
+	
 	// no update if not top window
 	wxWindow* p = dynamic_cast<wxWindow*>(wxGetApp().plater());
 	while (p->GetParent() != nullptr)
@@ -1036,13 +1036,13 @@ void NotificationManager::update_notifications(GLCanvas3D& canvas)
 	wxTopLevelWindow* top_level_wnd = dynamic_cast<wxTopLevelWindow*>(p);
 	if (!top_level_wnd->IsActive())
 		return;
-	*/
+	
 
 	// next_render() returns numeric_limits::max if no need for frame
 	const int64_t max = std::numeric_limits<int64_t>::max();
 	int64_t       next_render = max;
 	// During render, each notification detects if its currently hovered and changes its state to EState::Hovered
-	// If any notification is hovered, all stops its countdown 
+	// If any notification is hovered, all restarts its countdown 
 	bool          hover = false;
 	for (const std::unique_ptr<PopNotification>& notification : m_pop_notifications) {
 		if (notification->is_hovered()) {

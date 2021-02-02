@@ -2983,7 +2983,6 @@ void GLCanvas3D::on_render_timer(wxTimerEvent& evt)
     }
     */
     if (m_in_render) {
-        schedule_extra_frame(33);
         return;
     }
     m_dirty = true;
