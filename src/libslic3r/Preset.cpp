@@ -615,38 +615,6 @@ PresetCollection::PresetCollection(Preset::Type type, const std::vector<std::str
     m_edited_preset.config.apply(m_presets.front().config);
 }
 
-PresetCollection::PresetCollection(const PresetCollection& other)
-{
-    m_type                  = other.m_type                  ;
-    m_presets               = other.m_presets               ;
-    m_edited_preset         = other.m_edited_preset         ;
-    m_idx_selected          = other.m_idx_selected          ;
-    m_default_suppressed    = other.m_default_suppressed    ;
-    m_num_default_presets   = other.m_num_default_presets   ;
-    m_dir_path              = other.m_dir_path              ;
-    m_map_alias_to_profile_name  = other.m_map_alias_to_profile_name ;
-    m_map_system_profile_renamed = other.m_map_system_profile_renamed;
-}
-
-PresetCollection& PresetCollection::operator=(const PresetCollection& other)
-{
-    m_type                  = other.m_type                  ;
-    m_presets               = other.m_presets               ;
-    m_edited_preset         = other.m_edited_preset         ;
-    m_idx_selected          = other.m_idx_selected          ;
-    m_default_suppressed    = other.m_default_suppressed    ;
-    m_num_default_presets   = other.m_num_default_presets   ;
-    m_dir_path              = other.m_dir_path              ;
-    m_map_alias_to_profile_name  = other.m_map_alias_to_profile_name ;
-    m_map_system_profile_renamed = other.m_map_system_profile_renamed;
-
-    return *this;
-}
-
-PresetCollection::~PresetCollection()
-{
-}
-
 void PresetCollection::reset(bool delete_files)
 {
     if (m_presets.size() > m_num_default_presets) {
@@ -1305,6 +1273,18 @@ std::vector<std::string> PresetCollection::merge_presets(PresetCollection &&othe
     return duplicates;
 }
 
+void PresetCollection::update_vendor_ptrs_after_copy(const VendorMap &new_vendors)
+{
+    for (Preset &preset : m_presets)
+        if (preset.vendor != nullptr) {
+            assert(! preset.is_default && ! preset.is_external);
+            // Re-assign a pointer to the vendor structure in the new PresetBundle.
+            auto it = new_vendors.find(preset.vendor->id);
+            assert(it != new_vendors.end());
+            preset.vendor = &it->second;
+        }
+}
+
 void PresetCollection::update_map_alias_to_profile_name()
 {
 	m_map_alias_to_profile_name.clear();
@@ -1740,25 +1720,6 @@ std::string PhysicalPrinterCollection::path_from_name(const std::string& new_nam
 {
     std::string file_name = boost::iends_with(new_name, ".ini") ? new_name : (new_name + ".ini");
     return (boost::filesystem::path(m_dir_path) / file_name).make_preferred().string();
-}
-
-PhysicalPrinterCollection& PhysicalPrinterCollection::operator=(const PhysicalPrinterCollection& other)
-{
-    m_printers          = other.m_printers;
-    m_default_config    = other.m_default_config;
-    m_idx_selected      = other.m_idx_selected;
-    m_selected_preset   = other.m_selected_preset;
-    m_dir_path          = other.m_dir_path;
-    return *this;
-}
-
-PhysicalPrinterCollection::PhysicalPrinterCollection(const PhysicalPrinterCollection& other)
-{
-    m_printers          = other.m_printers;
-    m_default_config    = other.m_default_config;
-    m_idx_selected      = other.m_idx_selected;
-    m_selected_preset   = other.m_selected_preset;
-    m_dir_path          = other.m_dir_path;
 }
 
 void PhysicalPrinterCollection::save_printer(PhysicalPrinter& edited_printer, const std::string& renamed_from/* = ""*/)

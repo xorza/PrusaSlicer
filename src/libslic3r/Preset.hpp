@@ -116,7 +116,7 @@ public:
     };
 
     Preset(Type type, const std::string &name, bool is_default = false) : type(type), is_default(is_default), name(name) {}
-    Preset(){}
+    Preset() = default;
 
     Type                type        = TYPE_INVALID;
 
@@ -257,10 +257,6 @@ class PresetCollection
 public:
     // Initialize the PresetCollection with the "- default -" preset.
     PresetCollection(Preset::Type type, const std::vector<std::string> &keys, const Slic3r::StaticPrintConfig &defaults, const std::string &default_name = "- default -");
-    PresetCollection() {}
-    PresetCollection(const PresetCollection& other);
-    PresetCollection& operator=(const PresetCollection& other);
-    ~PresetCollection();
 
     typedef std::deque<Preset>::iterator Iterator;
     typedef std::deque<Preset>::const_iterator ConstIterator;
@@ -464,6 +460,15 @@ public:
     size_t num_default_presets() { return m_num_default_presets; }
 
 protected:
+    PresetCollection() = default;
+    // Copy constructor and copy operators are not to be used from outside PresetBundle,
+    // as the Profile::vendor points to an instance of VendorProfile stored at parent PresetBundle!
+    PresetCollection(const PresetCollection &other) = default;
+    PresetCollection& operator=(const PresetCollection &other) = default;
+    // After copying a collection with the default operators above, call this function
+    // to adjust Profile::vendor pointers.
+    void            update_vendor_ptrs_after_copy(const VendorMap &vendors);
+
     // Select a preset, if it exists. If it does not exist, select an invalid (-1) index.
     // This is a temporary state, which shall be fixed immediately by the following step.
     bool            select_preset_by_name_strict(const std::string &name);
@@ -478,10 +483,6 @@ protected:
     void 			update_map_system_profile_renamed();
 
 private:
-    //PresetCollection();
-    //PresetCollection(const PresetCollection &other);
-    //PresetCollection& operator=(const PresetCollection &other);
-
     // Find a preset position in the sorted list of presets.
     // The "-- default -- " preset is always the first, so it needs
     // to be handled differently.
@@ -535,7 +536,7 @@ private:
     // Path to the directory to store the config files into.
     std::string             m_dir_path;
 
-    // to access select_preset_by_name_strict()
+    // to access select_preset_by_name_strict() and the default & copy constructors.
     friend class PresetBundle;
 };
 
@@ -546,10 +547,17 @@ class PrinterPresetCollection : public PresetCollection
 public:
     PrinterPresetCollection(Preset::Type type, const std::vector<std::string> &keys, const Slic3r::StaticPrintConfig &defaults, const std::string &default_name = "- default -") :
 		PresetCollection(type, keys, defaults, default_name) {}
-    PrinterPresetCollection() : PresetCollection() {}
+
     const Preset&   default_preset_for(const DynamicPrintConfig &config) const override;
 
     const Preset*   find_by_model_id(const std::string &model_id) const;
+
+private:
+    PrinterPresetCollection() = default;
+    PrinterPresetCollection(const PrinterPresetCollection &other) = default;
+    PrinterPresetCollection& operator=(const PrinterPresetCollection &other) = default;
+
+    friend class PresetBundle;
 };
 
 namespace PresetUtils {
@@ -639,10 +647,6 @@ class PhysicalPrinterCollection
 {
 public:
     PhysicalPrinterCollection(const std::vector<std::string>& keys);
-    PhysicalPrinterCollection() {}
-    PhysicalPrinterCollection(const PhysicalPrinterCollection& other);
-    PhysicalPrinterCollection& operator=(const PhysicalPrinterCollection& other);
-    ~PhysicalPrinterCollection() {}
 
     typedef std::deque<PhysicalPrinter>::iterator Iterator;
     typedef std::deque<PhysicalPrinter>::const_iterator ConstIterator;
@@ -733,7 +737,9 @@ public:
     const DynamicPrintConfig& default_config() const { return m_default_config; }
 
 private:
-//    PhysicalPrinterCollection& operator=(const PhysicalPrinterCollection& other);
+    friend class PresetBundle;
+    PhysicalPrinterCollection() = default;
+    PhysicalPrinterCollection& operator=(const PhysicalPrinterCollection& other) = default;
 
     // Find a physical printer position in the sorted list of printers.
     // The name of a printer should be unique and case insensitive

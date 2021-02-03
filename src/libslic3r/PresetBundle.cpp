@@ -105,23 +105,33 @@ PresetBundle::PresetBundle() :
     this->project_config.apply_only(FullPrintConfig::defaults(), s_project_options);
 }
 
-PresetBundle::PresetBundle(const PresetBundle& src)
+PresetBundle::PresetBundle(const PresetBundle &rhs)
 {
-    prints              = src.prints;
-    sla_prints          = src.sla_prints;
-    filaments           = src.filaments;
-    sla_materials       = src.sla_materials;
-    printers            = src.printers;
-    physical_printers   = src.physical_printers;
-
-    filament_presets    = src.filament_presets;
-    project_config      = src.project_config;
-    vendors             = src.vendors;
-    obsolete_presets    = src.obsolete_presets;
+    *this = rhs;
 }
 
-PresetBundle::~PresetBundle()
+PresetBundle& PresetBundle::operator=(const PresetBundle &rhs)
 {
+    prints              = rhs.prints;
+    sla_prints          = rhs.sla_prints;
+    filaments           = rhs.filaments;
+    sla_materials       = rhs.sla_materials;
+    printers            = rhs.printers;
+    physical_printers   = rhs.physical_printers;
+
+    filament_presets    = rhs.filament_presets;
+    project_config      = rhs.project_config;
+    vendors             = rhs.vendors;
+    obsolete_presets    = rhs.obsolete_presets;
+
+    // Adjust Preset::vendor pointers to point to the copied vendors map.
+    prints       .update_vendor_ptrs_after_copy(this->vendors);
+    sla_prints   .update_vendor_ptrs_after_copy(this->vendors);
+    filaments    .update_vendor_ptrs_after_copy(this->vendors);
+    sla_materials.update_vendor_ptrs_after_copy(this->vendors);
+    printers     .update_vendor_ptrs_after_copy(this->vendors);
+
+    return *this;
 }
 
 void PresetBundle::reset(bool delete_files)
