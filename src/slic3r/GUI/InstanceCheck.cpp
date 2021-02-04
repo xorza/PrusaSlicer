@@ -504,10 +504,12 @@ void OtherInstanceMessageHandler::handle_message(const std::string& message)
 	}
 }
 
+#ifdef __APPLE__
 void OtherInstanceMessageHandler::handle_message_other_closed() 
 {
-	BOOST_LOG_TRIVIAL(error) << "getlock:" << instance_check_internal::get_lock(wxGetApp().get_instance_hash_string() + ".lock", data_dir() + "/cache/");
+	instance_check_internal::get_lock(wxGetApp().get_instance_hash_string() + ".lock", data_dir() + "/cache/");
 }
+#endif //__APPLE__
 
 #ifdef BACKGROUND_MESSAGE_LISTENER
 
