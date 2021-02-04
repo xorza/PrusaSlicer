@@ -115,9 +115,6 @@ public:
         TYPE_COUNT,
     };
 
-    Preset(Type type, const std::string &name, bool is_default = false) : type(type), is_default(is_default), name(name) {}
-    Preset() = default;
-
     Type                type        = TYPE_INVALID;
 
     // The preset represents a "default" set of properties,
@@ -234,6 +231,9 @@ public:
     static std::string                      remove_invalid_keys(DynamicPrintConfig &config, const DynamicPrintConfig &default_config);
 
 protected:
+    Preset(Type type, const std::string &name, bool is_default = false) : type(type), is_default(is_default), name(name) {}
+    Preset() = default;
+
     friend class        PresetCollection;
     friend class        PresetBundle;
 };
