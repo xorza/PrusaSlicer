@@ -1436,6 +1436,7 @@ void TabPrint::build()
         optgroup->append_single_option_line("seam_position", category_path + "seam-position");
         optgroup->append_single_option_line("external_perimeters_first", category_path + "external-perimeters-first");
         optgroup->append_single_option_line("gap_fill_enabled");
+        optgroup->append_single_option_line("gap_fill_min_area");
 
     page = add_options_page(L("Infill"), "infill");
         category_path = "infill_42#";

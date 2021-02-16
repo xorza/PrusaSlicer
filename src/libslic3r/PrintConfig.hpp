@@ -527,10 +527,11 @@ public:
     ConfigOptionFloatOrPercent      external_perimeter_speed;
     ConfigOptionBool                external_perimeters_first;
     ConfigOptionBool                extra_perimeters;
-    ConfigOptionBool                gap_fill_enabled;
     ConfigOptionFloat               fill_angle;
     ConfigOptionPercent             fill_density;
     ConfigOptionEnum<InfillPattern> fill_pattern;
+    ConfigOptionBool                gap_fill_enabled;
+    ConfigOptionFloat               gap_fill_min_area;
     ConfigOptionFloat               gap_fill_speed;
     ConfigOptionFloatOrPercent      infill_anchor;
     ConfigOptionFloatOrPercent      infill_anchor_max;
@@ -581,10 +582,11 @@ protected:
         OPT_PTR(external_perimeter_speed);
         OPT_PTR(external_perimeters_first);
         OPT_PTR(extra_perimeters);
-        OPT_PTR(gap_fill_enabled);
         OPT_PTR(fill_angle);
         OPT_PTR(fill_density);
         OPT_PTR(fill_pattern);
+        OPT_PTR(gap_fill_enabled);
+        OPT_PTR(gap_fill_min_area);
         OPT_PTR(gap_fill_speed);
         OPT_PTR(infill_anchor);
         OPT_PTR(infill_anchor_max);
