@@ -284,6 +284,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
                     "support_material_xy_spacing" })
         toggle_field(el, have_support_material);
     toggle_field("support_material_threshold", have_support_material_auto);
+    toggle_field("support_min_overhang_area", have_support_material_auto);
 
     for (auto el : { "support_material_interface_spacing", "support_material_interface_extruder",
                     "support_material_interface_speed", "support_material_interface_contact_loops" })

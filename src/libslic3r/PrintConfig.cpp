@@ -2344,6 +2344,15 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionInt(0));
 
+    def = this->add("support_min_overhang_area", coFloat);
+    def->label = L("Min overhang area");
+    def->category = L("Support material");
+    def->tooltip = L("");
+    def->sidetext = L("mm²");
+    def->mode = comExpert;
+    def->min = 0;
+    def->set_default_value(new ConfigOptionFloat(5));
+
     def = this->add("support_material_with_sheath", coBool);
     def->label = L("With sheath around the support");
     def->category = L("Support material");

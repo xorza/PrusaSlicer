@@ -501,6 +501,7 @@ public:
     ConfigOptionBool                support_material_synchronize_layers;
     // Overhang angle threshold.
     ConfigOptionInt                 support_material_threshold;
+    ConfigOptionFloat               support_min_overhang_area;
     ConfigOptionBool                support_material_with_sheath;
     ConfigOptionFloatOrPercent      support_material_xy_spacing;
     ConfigOptionFloat               xy_size_compensation;
@@ -544,6 +545,7 @@ protected:
         OPT_PTR(support_material_synchronize_layers);
         OPT_PTR(support_material_xy_spacing);
         OPT_PTR(support_material_threshold);
+        OPT_PTR(support_min_overhang_area);
         OPT_PTR(support_material_with_sheath);
         OPT_PTR(xy_size_compensation);
         OPT_PTR(wipe_into_objects);
@@ -585,7 +587,7 @@ public:
     // Ironing options
     ConfigOptionBool 				ironing;
     ConfigOptionEnum<IroningType> 	ironing_type;
-    ConfigOptionPercent 			ironing_flowrate;
+    ConfigOptionPercent             ironing_flowrate;
     ConfigOptionFloat 				ironing_spacing;
     ConfigOptionFloat 				ironing_speed;
     // Detect bridging perimeters

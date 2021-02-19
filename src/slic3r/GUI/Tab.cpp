@@ -1492,6 +1492,7 @@ void TabPrint::build()
         optgroup->append_single_option_line("support_material", category_path + "generate-support-material");
         optgroup->append_single_option_line("support_material_auto", category_path + "auto-generated-supports");
         optgroup->append_single_option_line("support_material_threshold", category_path + "overhang-threshold");
+        optgroup->append_single_option_line("support_min_overhang_area", category_path + "overhang-min-area");
         optgroup->append_single_option_line("support_material_enforce_layers", category_path + "enforce-support-for-the-first");
 
         optgroup = page->new_optgroup(L("Raft"));
