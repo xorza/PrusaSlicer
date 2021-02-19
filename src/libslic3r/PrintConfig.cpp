@@ -2347,7 +2347,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("support_min_overhang_area", coFloat);
     def->label = L("Min overhang area");
     def->category = L("Support material");
-    def->tooltip = L("");
+    def->tooltip = L("Supports will be generated only for overhangs which area is bigger or equal to the specified value.");
     def->sidetext = L("mm²");
     def->mode = comExpert;
     def->min = 0;
