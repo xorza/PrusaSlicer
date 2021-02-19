@@ -1147,6 +1147,17 @@ PrintObjectSupportMaterial::MyLayersPtr PrintObjectSupportMaterial::top_contact_
                             SupportMaterialInternal::remove_bridges_from_contacts(
                                 *m_print_config, lower_layer, lower_layer_polygons, layerm, fw, diff_polygons);
 
+                        const double support_min_overhang_area = m_object_config->support_min_overhang_area.getFloat();
+
+                        diff_polygons.erase(
+                            std::remove_if(
+                                diff_polygons.begin(),
+                                diff_polygons.end(),
+                                [support_min_overhang_area](const Polygon& poly) {
+                                    return poly.area() < scale(scale(support_min_overhang_area));
+                                }),
+                            diff_polygons.end());
+
                         if (diff_polygons.empty())
                             continue;
 
@@ -1162,7 +1173,7 @@ PrintObjectSupportMaterial::MyLayersPtr PrintObjectSupportMaterial::top_contact_
                         //FIXME the overhang_polygons are used to construct the support towers as well.
                         //if (this->has_contact_loops())
                             // Store the exact contour of the overhang for the contact loops.
-                            polygons_append(overhang_polygons, diff_polygons);
+                        polygons_append(overhang_polygons, diff_polygons);
 
                         // Let's define the required contact area by using a max gap of half the upper 
                         // extrusion width and extending the area according to the configured margin.

@@ -89,7 +89,10 @@ namespace Slic3r {
 extern Semver SEMVER;
 
 template<typename T, typename Q>
-inline T unscale(Q v) { return T(v) * T(SCALING_FACTOR); }
+constexpr inline T unscale(Q v) { return T(v) * T(SCALING_FACTOR); }
+
+template<typename T = double, typename Q>
+constexpr inline T scale(Q v) { return T(v) / T(SCALING_FACTOR); }
 
 enum Axis { 
 	X=0,
